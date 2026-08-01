@@ -23,7 +23,8 @@ const initAuditorio = () => {
 
 const initComida = () => {
   const layout = { banca: [] };
-  for (let m = 1; m <= 11; m++) { 
+  // Agregada la Mesa 12
+  for (let m = 1; m <= 12; m++) { 
     for (let s = 1; s <= 10; s++) layout[`mesa_${m}_silla_${s}`] = [];
   }
   return layout;
@@ -66,11 +67,12 @@ const getExcelStyle = (dependencia) => {
   return { fill: { patternType: 'solid', fgColor: { rgb: bg } }, font: { color: { rgb: text }, bold: true }, alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 };
 
+// 12 Colores de Mesas
 const paletaMesas = [
   { bg: '#fee2e2', border: '#ef4444' }, { bg: '#fef3c7', border: '#f59e0b' }, { bg: '#dcfce7', border: '#22c55e' }, 
   { bg: '#e0f2fe', border: '#0ea5e9' }, { bg: '#f3e8ff', border: '#a855f7' }, { bg: '#ffedd5', border: '#f97316' },
   { bg: '#ecfccb', border: '#84cc16' }, { bg: '#ccfbf1', border: '#14b8a6' }, { bg: '#ede9fe', border: '#6366f1' }, 
-  { bg: '#ffe4e6', border: '#f43f5e' }, { bg: '#fae8ff', border: '#d946ef' } 
+  { bg: '#ffe4e6', border: '#f43f5e' }, { bg: '#fae8ff', border: '#d946ef' }, { bg: '#f1f5f9', border: '#64748b' } 
 ];
 
 export default function App() {
@@ -79,7 +81,8 @@ export default function App() {
   const [comida, setComida] = useState(initComida());
   const [nombresMesas, setNombresMesas] = useState({
     mesa_1: 'Mesa 1', mesa_2: 'Mesa 2', mesa_3: 'Mesa 3', mesa_4: 'Mesa 4', mesa_5: 'Mesa 5',
-    mesa_6: 'Mesa 6', mesa_7: 'Mesa 7', mesa_8: 'Mesa 8', mesa_9: 'Mesa 9', mesa_10: 'Mesa 10', mesa_11: 'Mesa 11' 
+    mesa_6: 'Mesa 6', mesa_7: 'Mesa 7', mesa_8: 'Mesa 8', mesa_9: 'Mesa 9', mesa_10: 'Mesa 10', 
+    mesa_11: 'Mesa 11', mesa_12: 'Mesa 12' 
   });
   const [zoom, setZoom] = useState(1); 
   const [busquedaBanca, setBusquedaBanca] = useState('');
@@ -115,11 +118,39 @@ export default function App() {
     }
   };
 
-  // --- 3. LÓGICAS DE ELIMINACIÓN Y EDICIÓN ---
+  // --- 3. LÓGICAS DE BLOQUEO, ELIMINACIÓN Y EDICIÓN ---
+  const toggleBloqueoBanca = (id) => {
+    const propBloqueo = vistaActual === 'auditorio' ? 'bloqueado_auditorio' : 'bloqueado_comida';
+    
+    // Actualiza auditorio
+    const nuevoAuditorio = { ...auditorio };
+    Object.keys(nuevoAuditorio).forEach(key => {
+        nuevoAuditorio[key] = nuevoAuditorio[key].map(inv => inv.id === id ? { ...inv, [propBloqueo]: !inv[propBloqueo] } : inv);
+    });
+    if (nuevoAuditorio.banca) {
+      nuevoAuditorio.banca.sort((a, b) => (a.bloqueado_auditorio === b.bloqueado_auditorio ? 0 : a.bloqueado_auditorio ? 1 : -1));
+    }
+
+    // Actualiza comida
+    const nuevaComida = { ...comida };
+    Object.keys(nuevaComida).forEach(key => {
+        nuevaComida[key] = nuevaComida[key].map(inv => inv.id === id ? { ...inv, [propBloqueo]: !inv[propBloqueo] } : inv);
+    });
+    if (nuevaComida.banca) {
+      nuevaComida.banca.sort((a, b) => (a.bloqueado_comida === b.bloqueado_comida ? 0 : a.bloqueado_comida ? 1 : -1));
+    }
+
+    setAuditorio(nuevoAuditorio);
+    setComida(nuevaComida);
+    syncToCloud(nuevoAuditorio, nuevaComida, null);
+  };
+
   const eliminarInvitadoDeBanca = (id) => {
-    if (!window.confirm("¿Seguro que deseas eliminar a este invitado de la banca?")) return;
+    if (!window.confirm("¿Seguro que deseas eliminar a este invitado de todo el evento?")) return;
     const nuevoAuditorio = { ...auditorio, banca: auditorio.banca.filter(inv => inv.id !== id) };
     const nuevaComida = { ...comida, banca: comida.banca.filter(inv => inv.id !== id) };
+    setAuditorio(nuevoAuditorio);
+    setComida(nuevaComida);
     syncToCloud(nuevoAuditorio, nuevaComida, null);
   };
 
@@ -134,6 +165,8 @@ export default function App() {
     
     const nuevoAuditorio = actualizarLayout(auditorio);
     const nuevaComida = actualizarLayout(comida);
+    setAuditorio(nuevoAuditorio);
+    setComida(nuevaComida);
     syncToCloud(nuevoAuditorio, nuevaComida, null);
     setInvitadoEditando(null); 
   };
@@ -175,14 +208,9 @@ export default function App() {
           setNombresMesas(nombresSeguros);
           
           syncToCloud(auditorioSeguro, comidaSegura, nombresSeguros);
-          
           alert('✅ Respaldo cargado y sincronizado en la nube correctamente.');
-        } else {
-          alert('❌ El archivo no tiene el formato correcto.');
-        }
-      } catch (error) {
-        alert("❌ Error al leer el archivo de respaldo.");
-      }
+        } else { alert('❌ El archivo no tiene el formato correcto.'); }
+      } catch (error) { alert("❌ Error al leer el archivo de respaldo."); }
       e.target.value = null;
     };
     reader.readAsText(file);
@@ -247,7 +275,7 @@ export default function App() {
     }
 
     const matrizComida = [];
-    for(let m=1; m<=11; m++) { 
+    for(let m=1; m<=12; m++) { 
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
         for(let fila=0; fila<5; fila++) {
             const s1 = (fila * 2) + 1;
@@ -284,12 +312,15 @@ export default function App() {
         const nuevosInvitados = filasExcel.map((fila, index) => {
           const filaNormalizada = {};
           Object.keys(fila).forEach(key => { filaNormalizada[key.toLowerCase().trim()] = fila[key]; });
-          return { id: `excel-${Date.now()}-${index}`, dependencia: filaNormalizada.dependencia || '', nombre: filaNormalizada.nombre || 'Sin Nombre', cargo: filaNormalizada.cargo || 'Sin Cargo' };
+          return { id: `excel-${Date.now()}-${index}`, dependencia: filaNormalizada.dependencia || '', nombre: filaNormalizada.nombre || 'Sin Nombre', cargo: filaNormalizada.cargo || 'Sin Cargo', bloqueado_auditorio: false, bloqueado_comida: false };
         });
 
-        const nuevoAuditorio = { ...auditorio, banca: [...auditorio.banca, ...nuevosInvitados] };
-        const nuevaComida = { ...comida, banca: [...comida.banca, ...nuevosInvitados] };
+        // Aseguramos que se mantenga el orden de bloqueados abajo
+        const nuevoAuditorio = { ...auditorio, banca: [...auditorio.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_auditorio === b.bloqueado_auditorio ? 0 : a.bloqueado_auditorio ? 1 : -1)) };
+        const nuevaComida = { ...comida, banca: [...comida.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_comida === b.bloqueado_comida ? 0 : a.bloqueado_comida ? 1 : -1)) };
         
+        setAuditorio(nuevoAuditorio);
+        setComida(nuevaComida);
         syncToCloud(nuevoAuditorio, nuevaComida, null);
         alert(`✅ Se cargaron y sincronizaron ${nuevosInvitados.length} invitados.`);
         e.target.value = null; 
@@ -359,6 +390,7 @@ export default function App() {
       nuevaLista.splice(destination.index, 0, movido);
       
       const nuevoEstado = { ...estadoActivo, [source.droppableId]: nuevaLista };
+      if (vistaActual === 'auditorio') setAuditorio(nuevoEstado); else setComida(nuevoEstado);
       syncToCloud(vistaActual === 'auditorio' ? nuevoEstado : null, vistaActual === 'comida' ? nuevoEstado : null, null);
       return;
     }
@@ -375,9 +407,16 @@ export default function App() {
     const [invitadoMovido] = origenLista.splice(source.index, 1);
     destinoLista.splice(destination.index, 0, invitadoMovido);
 
+    // Si se regresó a la banca, mantener bloqueados al fondo
+    if (destination.droppableId === 'banca') {
+        const propBloqueo = vistaActual === 'auditorio' ? 'bloqueado_auditorio' : 'bloqueado_comida';
+        destinoLista.sort((a, b) => (a[propBloqueo] === b[propBloqueo] ? 0 : a[propBloqueo] ? 1 : -1));
+    }
+
     nuevoEstado[source.droppableId] = origenLista;
     nuevoEstado[destination.droppableId] = destinoLista;
 
+    if (vistaActual === 'auditorio') setAuditorio(nuevoEstado); else setComida(nuevoEstado);
     syncToCloud(vistaActual === 'auditorio' ? nuevoEstado : null, vistaActual === 'comida' ? nuevoEstado : null, null);
   };
 
@@ -395,7 +434,11 @@ export default function App() {
         />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '100%' }}>
-        {Array.from({ length: 10 }, (_, s) => <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={layoutActivo[`mesa_${m}_silla_${s+1}`] || []} vista="comida" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />)}
+        {Array.from({ length: 10 }, (_, s) => {
+          // Extraemos a los ocupantes para determinar si están bloqueados en esta vista
+          const ocupante = layoutActivo[`mesa_${m}_silla_${s+1}`] || [];
+          return <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />
+        })}
       </div>
     </div>
   );
@@ -475,9 +518,10 @@ export default function App() {
           <Droppable droppableId="banca">
             {(provided) => (
               <div {...provided.droppableProps} ref={provided.innerRef} style={{ flexGrow: 1, overflowY: 'auto', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '4px', minHeight: '100px' }}>
-                {(layoutActivo.banca || []).map((invitado, index) => (
-                  <Tarjeta key={invitado.id} invitado={invitado} index={index} isBanca={true} onDelete={eliminarInvitadoDeBanca} busqueda={busquedaBanca} onEdit={setInvitadoEditando} />
-                ))}
+                {(layoutActivo.banca || []).map((invitado, index) => {
+                  const isBloqueado = vistaActual === 'auditorio' ? invitado.bloqueado_auditorio : invitado.bloqueado_comida;
+                  return <Tarjeta key={invitado.id} invitado={invitado} index={index} isBanca={true} isBloqueado={isBloqueado} onToggleLock={toggleBloqueoBanca} onDelete={eliminarInvitadoDeBanca} busqueda={busquedaBanca} onEdit={setInvitadoEditando} />
+                })}
                 {provided.placeholder}
               </div>
             )}
@@ -579,7 +623,7 @@ export default function App() {
                   <div id="comida-parte-1" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: '40px', padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>{Array.from({ length: 3 }, (_, i) => renderMesaLayout(i + 1))}</div>
                   <div id="comida-parte-2" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: '40px', padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>{Array.from({ length: 3 }, (_, i) => renderMesaLayout(i + 4))}</div>
                   <div id="comida-parte-3" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: '40px', padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>{Array.from({ length: 3 }, (_, i) => renderMesaLayout(i + 7))}</div>
-                  <div id="comida-parte-4" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: '40px', padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>{Array.from({ length: 2 }, (_, i) => renderMesaLayout(i + 10))}</div>
+                  <div id="comida-parte-4" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: '40px', padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>{Array.from({ length: 3 }, (_, i) => renderMesaLayout(i + 10))}</div>
                 </div>
               </div>
             )}
@@ -598,7 +642,11 @@ function Silla({ id, ocupante, vista, busqueda, onEdit }) {
       {(provided) => (
         <div ref={provided.innerRef} {...provided.droppableProps} style={{ width, minWidth, height, flexShrink, border: arrOcupante.length === 0 ? '2px dashed #94a3b8' : 'none', backgroundColor: arrOcupante.length === 0 ? 'rgba(255,255,255,0.5)' : 'transparent', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
           {arrOcupante.length === 0 && <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' }}>{id.includes('silla') ? id.split('_').pop() : 'Silla'}</span>}
-          {arrOcupante.map((invitado, index) => <Tarjeta key={invitado.id} invitado={invitado} index={index} enSilla={true} busqueda={busqueda} onEdit={onEdit} />)}
+          {arrOcupante.map((invitado, index) => {
+            // Evaluamos el estado global si llega a caer aquí
+            const isBloq = vista === 'auditorio' ? invitado.bloqueado_auditorio : invitado.bloqueado_comida;
+            return <Tarjeta key={invitado.id} invitado={invitado} index={index} enSilla={true} isBloqueado={isBloq} busqueda={busqueda} onEdit={onEdit} />
+          })}
           <div style={{ display: 'none' }}>{provided.placeholder}</div>
         </div>
       )}
@@ -606,16 +654,30 @@ function Silla({ id, ocupante, vista, busqueda, onEdit }) {
   );
 }
 
-function Tarjeta({ invitado, index, enSilla, isBanca, onDelete, busqueda, onEdit }) {
+function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock, onDelete, busqueda, onEdit }) {
   const colorBorde = getColorDependencia(invitado.dependencia); const textoBusqueda = busqueda ? busqueda.toLowerCase() : '';
   const coincideBusqueda = textoBusqueda !== '' && (invitado.nombre.toLowerCase().includes(textoBusqueda) || invitado.cargo.toLowerCase().includes(textoBusqueda) || invitado.dependencia.toLowerCase().includes(textoBusqueda));
-  const opacity = (textoBusqueda !== '' && !coincideBusqueda) ? 0.2 : 1; const glow = coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 2px 4px rgba(0,0,0,0.1)'; const escala = coincideBusqueda ? 'scale(1.02)' : 'scale(1)';
+  
+  // Apariencia visual si está bloqueado
+  const opacity = (textoBusqueda !== '' && !coincideBusqueda) ? 0.2 : (isBloqueado ? 0.5 : 1); 
+  const bgCard = isBloqueado ? '#e2e8f0' : 'white';
+  const glow = coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 2px 4px rgba(0,0,0,0.1)'; 
+  const escala = coincideBusqueda ? 'scale(1.02)' : 'scale(1)';
 
   return (
-    <Draggable draggableId={invitado.id} index={index}>
+    <Draggable draggableId={invitado.id} index={index} isDragDisabled={isBanca && isBloqueado}>
       {(provided) => (
-        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} onDoubleClick={() => onEdit(invitado)} title="Doble clic para editar" style={{ userSelect: 'none', padding: '6px', backgroundColor: 'white', border: '1px solid #cbd5e1', borderTop: `4px solid ${colorBorde}`, borderRadius: '4px', boxShadow: glow, transform: provided.draggableProps.style?.transform || escala, width: enSilla ? '100%' : '100%', height: enSilla ? '100%' : 'auto', marginBottom: enSilla ? '0' : '10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box', position: 'relative', transition: 'box-shadow 0.3s, opacity 0.3s', opacity, ...provided.draggableProps.style }}>
-          {isBanca && (<button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDelete(invitado.id)} title="Eliminar invitado" style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >×</button>)}
+        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} onDoubleClick={() => onEdit(invitado)} title="Doble clic para editar" style={{ userSelect: 'none', padding: '6px', backgroundColor: bgCard, border: '1px solid #cbd5e1', borderTop: `4px solid ${colorBorde}`, borderRadius: '4px', boxShadow: glow, transform: provided.draggableProps.style?.transform || escala, width: enSilla ? '100%' : '100%', height: enSilla ? '100%' : 'auto', marginBottom: enSilla ? '0' : '10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box', position: 'relative', transition: 'box-shadow 0.3s, opacity 0.3s', opacity, ...provided.draggableProps.style }}>
+          
+          {isBanca && (
+            <>
+              {/* Botón de Bloqueo/Desbloqueo */}
+              <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onToggleLock(invitado.id)} title={isBloqueado ? "Desbloquear" : "Bloquear (mandar al final de la lista)"} style={{ position: 'absolute', top: '-6px', right: '16px', width: '18px', height: '18px', backgroundColor: isBloqueado ? '#8b5cf6' : '#94a3b8', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >{isBloqueado ? '🔓' : '🔒'}</button>
+              {/* Botón de Eliminación */}
+              <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDelete(invitado.id)} title="Eliminar del evento" style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >×</button>
+            </>
+          )}
+
           <div style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: '1.2', marginBottom: '3px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical' }}>{invitado.nombre}</div>
           <div style={{ fontSize: '9px', color: '#64748b', lineHeight: '1.15', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: '3', WebkitBoxOrient: 'vertical', width: '100%' }}>{invitado.cargo}</div>
         </div>
