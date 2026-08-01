@@ -83,9 +83,7 @@ export default function App() {
     mesa_11: 'Mesa 11', mesa_12: 'Mesa 12' 
   });
   
-  // Estado para rastrear el orden visual de las mesas
   const [ordenMesas, setOrdenMesas] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-
   const [zoom, setZoom] = useState(1); 
   const [busquedaBanca, setBusquedaBanca] = useState('');
   const [busquedaLienzo, setBusquedaLienzo] = useState('');
@@ -216,7 +214,6 @@ export default function App() {
     });
 
     const datosComida = [];
-    // Exportamos en el orden visual actual
     ordenMesas.forEach(m => {
       for(let s=1; s<=10; s++) {
         const ocupantes = comida[`mesa_${m}_silla_${s}`] || [];
@@ -254,7 +251,6 @@ export default function App() {
     }
 
     const matrizComida = [];
-    // Matriz en base al orden acomodado visualmente
     ordenMesas.forEach((m) => {
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
         for(let fila=0; fila<5; fila++) {
@@ -386,21 +382,30 @@ export default function App() {
       return;
     }
 
-    if (destination.droppableId !== 'banca' && (estadoActivo[destination.droppableId] || []).length >= 1) {
-      // Por la mejora del 'isDropDisabled', esta alerta ya casi no es necesaria, pero la dejamos por seguridad.
-      alert('Esta silla ya está ocupada.'); return;
-    }
-
     const nuevoEstado = { ...estadoActivo };
     const origenLista = Array.from(nuevoEstado[source.droppableId] || []);
     const destinoLista = Array.from(nuevoEstado[destination.droppableId] || []);
 
     const [invitadoMovido] = origenLista.splice(source.index, 1);
-    destinoLista.splice(destination.index, 0, invitadoMovido);
 
-    if (destination.droppableId === 'banca') {
+    // --- NUEVA LÓGICA DE INTERCAMBIO (SWAP) ---
+    if (destination.droppableId !== 'banca' && destinoLista.length >= 1) {
+      // Sacamos al invitado que ya estaba en la silla de destino
+      const [invitadoDesplazado] = destinoLista.splice(0, 1);
+      // Metemos al nuevo invitado en esa silla
+      destinoLista.push(invitadoMovido);
+      // Mandamos al desplazado a la posición original (ya sea otra silla o la banca)
+      origenLista.splice(source.index, 0, invitadoDesplazado);
+    } else {
+      // Movimiento normal a un lugar vacío
+      destinoLista.splice(destination.index, 0, invitadoMovido);
+    }
+
+    // Re-ordenar si alguien terminó en la banca (por bloqueo)
+    if (destination.droppableId === 'banca' || source.droppableId === 'banca') {
         const propBloqueo = vistaActual === 'auditorio' ? 'bloqueado_auditorio' : 'bloqueado_comida';
-        destinoLista.sort((a, b) => (a[propBloqueo] === b[propBloqueo] ? 0 : a[propBloqueo] ? 1 : -1));
+        if (destination.droppableId === 'banca') destinoLista.sort((a, b) => (a[propBloqueo] === b[propBloqueo] ? 0 : a[propBloqueo] ? 1 : -1));
+        if (source.droppableId === 'banca') origenLista.sort((a, b) => (a[propBloqueo] === b[propBloqueo] ? 0 : a[propBloqueo] ? 1 : -1));
     }
 
     nuevoEstado[source.droppableId] = origenLista;
@@ -422,7 +427,6 @@ export default function App() {
     return acc;
   }, 0);
 
-  // Divide las mesas en bloques de 3 para el PDF y el render de cuadrícula
   const bloquesMesas = [];
   for (let i = 0; i < ordenMesas.length; i += 3) {
     bloquesMesas.push(ordenMesas.slice(i, i + 3));
@@ -436,7 +440,6 @@ export default function App() {
           {...provided.draggableProps} 
           style={{ ...provided.draggableProps.style, width: '320px', backgroundColor: paletaMesas[m - 1].bg, border: `3px solid ${paletaMesas[m - 1].border}`, borderRadius: '8px', padding: '15px 20px 20px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: snapshot.isDragging ? '0 15px 25px rgba(0,0,0,0.3)' : '0 4px 6px -1px rgba(0,0,0,0.1)', flexShrink: 0, opacity: snapshot.isDragging ? 0.9 : 1 }}
         >
-          {/* HANDLE PARA ARRASTRAR LA MESA COMPLETA */}
           <div {...provided.dragHandleProps} title="Arrastrar mesa para reordenarla" style={{ width: '100%', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: snapshot.isDragging ? 'grabbing' : 'grab', marginBottom: '8px', color: paletaMesas[m - 1].border, opacity: 0.6 }}>
             <span style={{ fontSize: '18px', lineHeight: '0' }}>⣿</span>
           </div>
@@ -629,7 +632,7 @@ export default function App() {
               </div>
             )}
 
-            {/* VISTA COMIDA (Con Drag and Drop de Mesas) */}
+            {/* VISTA COMIDA */}
             {vistaActual === 'comida' && (
               <div id="contenedor-comida" style={{ width: '100%', overflowX: 'auto', paddingBottom: '20px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', alignItems: 'center', minWidth: 'max-content', padding: '0 20px' }}>
@@ -666,17 +669,28 @@ function Silla({ id, ocupante, vista, busqueda, onEdit }) {
   const estaOcupada = arrOcupante.length >= 1;
 
   return (
-    <Droppable droppableId={id} isDropDisabled={estaOcupada} type="invitado">
-      {(provided, snapshot) => (
-        <div ref={provided.innerRef} {...provided.droppableProps} style={{ width, minWidth, height, flexShrink, border: estaOcupada ? 'none' : (snapshot.isDraggingOver ? '2px dashed #3b82f6' : '2px dashed #94a3b8'), backgroundColor: estaOcupada ? 'transparent' : (snapshot.isDraggingOver ? '#eff6ff' : 'rgba(255,255,255,0.5)'), borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', transition: 'background-color 0.2s, border 0.2s' }}>
-          {!estaOcupada && <span style={{ fontSize: '10px', color: snapshot.isDraggingOver ? '#3b82f6' : '#94a3b8', fontWeight: 'bold' }}>{id.includes('silla') ? id.split('_').pop() : 'Silla'}</span>}
-          {arrOcupante.map((invitado, index) => {
-            const isBloq = vista === 'auditorio' ? invitado.bloqueado_auditorio : invitado.bloqueado_comida;
-            return <Tarjeta key={invitado.id} invitado={invitado} index={index} enSilla={true} isBloqueado={isBloq} busqueda={busqueda} onEdit={onEdit} />
-          })}
-          <div style={{ display: 'none' }}>{provided.placeholder}</div>
-        </div>
-      )}
+    <Droppable droppableId={id} type="invitado">
+      {(provided, snapshot) => {
+        // Feedback de colores para el arrastre y el Intercambio
+        let borderColor = estaOcupada ? 'none' : '2px dashed #94a3b8';
+        let bgColor = estaOcupada ? 'transparent' : 'rgba(255,255,255,0.5)';
+        
+        if (snapshot.isDraggingOver) {
+           borderColor = estaOcupada ? '2px dashed #f59e0b' : '2px dashed #3b82f6';
+           bgColor = estaOcupada ? '#fef3c7' : '#eff6ff';
+        }
+
+        return (
+          <div ref={provided.innerRef} {...provided.droppableProps} style={{ width, minWidth, height, flexShrink, border: borderColor, backgroundColor: bgColor, borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', transition: 'background-color 0.2s, border 0.2s' }}>
+            {!estaOcupada && <span style={{ fontSize: '10px', color: snapshot.isDraggingOver ? '#3b82f6' : '#94a3b8', fontWeight: 'bold' }}>{id.includes('silla') ? id.split('_').pop() : 'Silla'}</span>}
+            {arrOcupante.map((invitado, index) => {
+              const isBloq = vista === 'auditorio' ? invitado.bloqueado_auditorio : invitado.bloqueado_comida;
+              return <Tarjeta key={invitado.id} invitado={invitado} index={index} enSilla={true} isBloqueado={isBloq} busqueda={busqueda} onEdit={onEdit} />
+            })}
+            <div style={{ display: 'none' }}>{provided.placeholder}</div>
+          </div>
+        )
+      }}
     </Droppable>
   );
 }
