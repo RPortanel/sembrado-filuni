@@ -23,7 +23,6 @@ const initAuditorio = () => {
 
 const initComida = () => {
   const layout = { banca: [] };
-  // Agregada la Mesa 12
   for (let m = 1; m <= 12; m++) { 
     for (let s = 1; s <= 10; s++) layout[`mesa_${m}_silla_${s}`] = [];
   }
@@ -422,6 +421,21 @@ export default function App() {
 
   const layoutActivo = vistaActual === 'auditorio' ? auditorio : comida;
 
+  // Lógica para los contadores
+  const ocupantesAuditorio = Object.keys(auditorio).reduce((acc, key) => {
+    if (key !== 'banca' && !key.includes('estrado')) {
+      return acc + (auditorio[key] || []).length;
+    }
+    return acc;
+  }, 0);
+
+  const ocupantesComida = Object.keys(comida).reduce((acc, key) => {
+    if (key !== 'banca') {
+      return acc + (comida[key] || []).length;
+    }
+    return acc;
+  }, 0);
+
   const renderMesaLayout = (m) => (
     <div key={`mesa_${m}`} style={{ width: '320px', backgroundColor: paletaMesas[m - 1].bg, border: `3px solid ${paletaMesas[m - 1].border}`, borderRadius: '8px', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', flexShrink: 0 }}>
       <div style={{ width: '100%', marginBottom: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -435,7 +449,6 @@ export default function App() {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '100%' }}>
         {Array.from({ length: 10 }, (_, s) => {
-          // Extraemos a los ocupantes para determinar si están bloqueados en esta vista
           const ocupante = layoutActivo[`mesa_${m}_silla_${s+1}`] || [];
           return <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />
         })}
@@ -540,9 +553,23 @@ export default function App() {
           </div>
 
           <div ref={pdfRef} style={{ backgroundColor: 'white', padding: '40px', borderRadius: '8px', minWidth: '1300px', minHeight: '100%', zoom: zoom }}>
-            <h1 style={{ textAlign: 'center', marginBottom: '40px', fontSize: '28px', fontWeight: 'bold', color: '#0f172a' }}>
-              {vistaActual === 'auditorio' ? 'Sembrado: Inauguración Filuni 2026' : 'Sembrado: Comida Inaugural'}
+            
+            <h1 style={{ textAlign: 'center', marginBottom: '10px', fontSize: '28px', fontWeight: 'bold', color: '#0f172a' }}>
+              {vistaActual === 'auditorio' ? 'Inauguración Filuni 2026' : 'Comida Inaugural'}
             </h1>
+            
+            <div style={{ textAlign: 'center', marginBottom: '30px', color: '#475569', fontSize: '14px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', gap: '20px' }}>
+               {vistaActual === 'auditorio' && (
+                 <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '6px 12px', borderRadius: '20px' }}>
+                   👥 Asistentes Auditorio: {ocupantesAuditorio}
+                 </span>
+               )}
+               {vistaActual === 'comida' && (
+                 <span style={{ backgroundColor: '#fef3c7', color: '#b45309', padding: '6px 12px', borderRadius: '20px' }}>
+                   🍽️ Asistentes Comida: {ocupantesComida}
+                 </span>
+               )}
+            </div>
 
             {/* VISTA AUDITORIO */}
             {vistaActual === 'auditorio' && (
@@ -643,7 +670,6 @@ function Silla({ id, ocupante, vista, busqueda, onEdit }) {
         <div ref={provided.innerRef} {...provided.droppableProps} style={{ width, minWidth, height, flexShrink, border: arrOcupante.length === 0 ? '2px dashed #94a3b8' : 'none', backgroundColor: arrOcupante.length === 0 ? 'rgba(255,255,255,0.5)' : 'transparent', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
           {arrOcupante.length === 0 && <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' }}>{id.includes('silla') ? id.split('_').pop() : 'Silla'}</span>}
           {arrOcupante.map((invitado, index) => {
-            // Evaluamos el estado global si llega a caer aquí
             const isBloq = vista === 'auditorio' ? invitado.bloqueado_auditorio : invitado.bloqueado_comida;
             return <Tarjeta key={invitado.id} invitado={invitado} index={index} enSilla={true} isBloqueado={isBloq} busqueda={busqueda} onEdit={onEdit} />
           })}
@@ -658,7 +684,6 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
   const colorBorde = getColorDependencia(invitado.dependencia); const textoBusqueda = busqueda ? busqueda.toLowerCase() : '';
   const coincideBusqueda = textoBusqueda !== '' && (invitado.nombre.toLowerCase().includes(textoBusqueda) || invitado.cargo.toLowerCase().includes(textoBusqueda) || invitado.dependencia.toLowerCase().includes(textoBusqueda));
   
-  // Apariencia visual si está bloqueado
   const opacity = (textoBusqueda !== '' && !coincideBusqueda) ? 0.2 : (isBloqueado ? 0.5 : 1); 
   const bgCard = isBloqueado ? '#e2e8f0' : 'white';
   const glow = coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 2px 4px rgba(0,0,0,0.1)'; 
@@ -671,9 +696,9 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
           
           {isBanca && (
             <>
-              {/* Botón de Bloqueo/Desbloqueo */}
-              <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onToggleLock(invitado.id)} title={isBloqueado ? "Desbloquear" : "Bloquear (mandar al final de la lista)"} style={{ position: 'absolute', top: '-6px', right: '16px', width: '18px', height: '18px', backgroundColor: isBloqueado ? '#8b5cf6' : '#94a3b8', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >{isBloqueado ? '🔓' : '🔒'}</button>
-              {/* Botón de Eliminación */}
+              {/* Botón de Bloqueo/Desbloqueo reubicado a la izquierda */}
+              <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onToggleLock(invitado.id)} title={isBloqueado ? "Desbloquear" : "Bloquear (mandar al final de la lista)"} style={{ position: 'absolute', top: '-6px', left: '-6px', width: '18px', height: '18px', backgroundColor: isBloqueado ? '#8b5cf6' : '#94a3b8', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >{isBloqueado ? '🔓' : '🔒'}</button>
+              {/* Botón de Eliminación (Derecha) */}
               <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDelete(invitado.id)} title="Eliminar del evento" style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >×</button>
             </>
           )}
