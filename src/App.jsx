@@ -142,9 +142,20 @@ export default function App() {
 
   const eliminarInvitadoDeBanca = (id) => {
     if (!window.confirm("¿Seguro que deseas eliminar a este invitado de todo el evento?")) return;
-    const nuevoAuditorio = { ...auditorio, banca: auditorio.banca.filter(inv => inv.id !== id) };
-    const nuevaComida = { ...comida, banca: comida.banca.filter(inv => inv.id !== id) };
-    setAuditorio(nuevoAuditorio); setComida(nuevaComida);
+    
+    const purgarLayout = (layout) => {
+      const nuevoLayout = { ...layout };
+      Object.keys(nuevoLayout).forEach(key => {
+        nuevoLayout[key] = nuevoLayout[key].filter(inv => inv.id !== id);
+      });
+      return nuevoLayout;
+    };
+
+    const nuevoAuditorio = purgarLayout(auditorio);
+    const nuevaComida = purgarLayout(comida);
+    
+    setAuditorio(nuevoAuditorio);
+    setComida(nuevaComida);
     syncToCloud(nuevoAuditorio, nuevaComida, null, null);
   };
 
@@ -204,14 +215,26 @@ export default function App() {
   const exportarExcel = () => {
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 
+    // ORDENACIÓN JERÁRQUICA PERFECTA DEL AUDITORIO
     const datosAuditorio = [];
-    Object.keys(auditorio).forEach(key => {
-      if (key === 'banca') return;
-      const ocupantes = auditorio[key] || [];
-      const ocupante = ocupantes[0];
-      let ubicacionStr = key.includes('estrado') ? key.replace('estrado_silla_', 'Estrado - Silla ') : `Fila ${key.split('_')[1]} - Silla ${key.split('_')[3]}`;
-      datosAuditorio.push({ 'Ubicación': ubicacionStr, 'Dependencia': ocupante ? ocupante.dependencia : '', 'Nombre': ocupante ? ocupante.nombre : '', 'Cargo': ocupante ? ocupante.cargo : '' });
-    });
+    
+    // 1. Estrado
+    for (let i = 1; i <= 7; i++) {
+      const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
+      datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': ocupante ? ocupante.dependencia : '', 'Nombre': ocupante ? ocupante.nombre : '', 'Cargo': ocupante ? ocupante.cargo : '' });
+    }
+    
+    // 2. Filas del 1 al 10 en orden
+    for (let f = 1; f <= 10; f++) {
+      for (let s = 1; s <= 13; s++) {
+        // Ignorar espacios virtuales
+        if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) continue;
+        if (f >= 7 && f <= 10 && s === 7) continue;
+
+        const ocupante = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
+        datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': ocupante ? ocupante.dependencia : '', 'Nombre': ocupante ? ocupante.nombre : '', 'Cargo': ocupante ? ocupante.cargo : '' });
+      }
+    }
 
     const datosComida = [];
     ordenMesas.forEach(m => {
@@ -351,7 +374,6 @@ export default function App() {
     const { source, destination, type } = result;
     if (!destination) return;
 
-    // LÓGICA DE REORDENAMIENTO DE MESAS
     if (type === 'mesa') {
       const srcRow = parseInt(source.droppableId.split('_')[1]);
       const destRow = parseInt(destination.droppableId.split('_')[1]);
@@ -368,7 +390,6 @@ export default function App() {
       return;
     }
 
-    // LÓGICA DE TARJETAS DE INVITADOS
     const estadoActivo = vistaActual === 'auditorio' ? auditorio : comida;
 
     if (source.droppableId === destination.droppableId) {
@@ -388,20 +409,14 @@ export default function App() {
 
     const [invitadoMovido] = origenLista.splice(source.index, 1);
 
-    // --- NUEVA LÓGICA DE INTERCAMBIO (SWAP) ---
     if (destination.droppableId !== 'banca' && destinoLista.length >= 1) {
-      // Sacamos al invitado que ya estaba en la silla de destino
       const [invitadoDesplazado] = destinoLista.splice(0, 1);
-      // Metemos al nuevo invitado en esa silla
       destinoLista.push(invitadoMovido);
-      // Mandamos al desplazado a la posición original (ya sea otra silla o la banca)
       origenLista.splice(source.index, 0, invitadoDesplazado);
     } else {
-      // Movimiento normal a un lugar vacío
       destinoLista.splice(destination.index, 0, invitadoMovido);
     }
 
-    // Re-ordenar si alguien terminó en la banca (por bloqueo)
     if (destination.droppableId === 'banca' || source.droppableId === 'banca') {
         const propBloqueo = vistaActual === 'auditorio' ? 'bloqueado_auditorio' : 'bloqueado_comida';
         if (destination.droppableId === 'banca') destinoLista.sort((a, b) => (a[propBloqueo] === b[propBloqueo] ? 0 : a[propBloqueo] ? 1 : -1));
@@ -573,12 +588,17 @@ export default function App() {
                         {Array.from({ length: 7 }, (_, i) => <Silla key={`estrado_silla_${i+1}`} id={`estrado_silla_${i+1}`} ocupante={layoutActivo[`estrado_silla_${i+1}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />)}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '0 15px', height: '30px', width: '100%' }}>
+                    
+                    {/* ENCABEZADO ASIENTOS - HOJA 1 (Alineación corregida) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '0 15px', border: '1px solid transparent', boxSizing: 'border-box', height: '30px', width: '100%' }}>
                       <div style={{ width: '60px', flexShrink: 0 }} /> 
                       <div style={{ display: 'flex', gap: '10px' }}>
-                        {Array.from({ length: 13 }, (_, sIndex) => (<div key={`num_guia_b1_${sIndex+1}`} style={{ width: '120px', minWidth: '120px', textAlign: 'center', color: '#64748b', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Asiento {sIndex + 1}</div>))}
+                        {Array.from({ length: 13 }, (_, sIndex) => (
+                          <div key={`num_guia_b1_${sIndex+1}`} style={{ width: '120px', minWidth: '120px', flexShrink: 0, textAlign: 'center', color: '#64748b', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Asiento {sIndex + 1}</div>
+                        ))}
                       </div>
                     </div>
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', alignItems: 'center' }}>
                       {Array.from({ length: 6 }, (_, fIndex) => {
                         const f = fIndex + 1;
@@ -606,12 +626,17 @@ export default function App() {
 
                   {/* HOJA 2 */}
                   <div id="auditorio-parte-2" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', alignItems: 'center', backgroundColor: 'white' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '0 15px', height: '30px', width: '100%' }}>
+                    
+                    {/* ENCABEZADO ASIENTOS - HOJA 2 (Alineación corregida) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '0 15px', border: '1px solid transparent', boxSizing: 'border-box', height: '30px', width: '100%' }}>
                       <div style={{ width: '60px', flexShrink: 0 }} /> 
                       <div style={{ display: 'flex', gap: '10px' }}>
-                        {Array.from({ length: 13 }, (_, sIndex) => (<div key={`num_guia_b2_${sIndex+1}`} style={{ width: '120px', minWidth: '120px', textAlign: 'center', color: '#64748b', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Asiento {sIndex + 1}</div>))}
+                        {Array.from({ length: 13 }, (_, sIndex) => (
+                          <div key={`num_guia_b2_${sIndex+1}`} style={{ width: '120px', minWidth: '120px', flexShrink: 0, textAlign: 'center', color: '#64748b', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Asiento {sIndex + 1}</div>
+                        ))}
                       </div>
                     </div>
+
                     {Array.from({ length: 4 }, (_, fIndex) => {
                       const f = fIndex + 7;
                       return (
@@ -671,7 +696,6 @@ function Silla({ id, ocupante, vista, busqueda, onEdit }) {
   return (
     <Droppable droppableId={id} type="invitado">
       {(provided, snapshot) => {
-        // Feedback de colores para el arrastre y el Intercambio
         let borderColor = estaOcupada ? 'none' : '2px dashed #94a3b8';
         let bgColor = estaOcupada ? 'transparent' : 'rgba(255,255,255,0.5)';
         
