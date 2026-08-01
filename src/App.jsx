@@ -3,7 +3,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import * as XLSX from 'xlsx-js-style'; 
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { db } from './firebase'; // <-- CONEXIÓN A FIREBASE
+import { db } from './firebase'; 
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 // --- 1. GENERADORES DE ESTRUCTURAS ---
@@ -104,7 +104,6 @@ export default function App() {
     return () => unsub(); // Limpiar el listener al cerrar
   }, []);
 
-  // Función maestra para guardar en la nube
   const syncToCloud = async (nuevoAuditorio, nuevaComida, nuevosNombres) => {
     try {
       await setDoc(doc(db, 'eventos', 'filuni2026'), {
@@ -145,11 +144,22 @@ export default function App() {
   };
 
   const manejarBlurNombreMesa = () => {
-    // Sincroniza al terminar de escribir para no saturar la base de datos
     syncToCloud(null, null, nombresMesas);
   };
 
-  // --- 4. EXPORTACIÓN A EXCEL (Intacta) ---
+  // --- RESPALDO LOCAL ---
+  const descargarRespaldo = () => {
+    const datos = { auditorio, comida, nombresMesas };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(datos));
+    const elementoEnlace = document.createElement('a');
+    elementoEnlace.setAttribute("href", dataStr);
+    elementoEnlace.setAttribute("download", `Respaldo_Filuni_Nube_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(elementoEnlace);
+    elementoEnlace.click();
+    document.body.removeChild(elementoEnlace);
+  };
+
+  // --- 4. EXPORTACIÓN A EXCEL ---
   const exportarExcel = () => {
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 
@@ -231,7 +241,7 @@ export default function App() {
     XLSX.writeFile(wb, "Sembrado_Invitados_Completo.xlsx");
   };
 
-  // --- 5. CARGAR EXCEL (A la nube) ---
+  // --- 5. CARGAR EXCEL ---
   const cargarExcel = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -307,7 +317,7 @@ export default function App() {
     }
   };
 
-  // --- 7. ARRASTRAR, SOLTAR Y SINCRONIZAR ---
+  // --- 7. ARRASTRAR Y SOLTAR ---
   const onDragEnd = (result) => {
     const { source, destination } = result;
     if (!destination) return;
@@ -408,6 +418,11 @@ export default function App() {
               </button>
             </div>
             <hr style={{ borderTop: '1px solid #e2e8f0', margin: '5px 0' }} />
+            
+            <button onClick={descargarRespaldo} style={{ backgroundColor: '#6366f1', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
+              💾 Descargar Respaldo (JSON)
+            </button>
+
             <button onClick={exportarExcel} style={{ backgroundColor: '#16a34a', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
               📊 Exportar a Excel (4 Hojas)
             </button>
