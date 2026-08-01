@@ -97,11 +97,10 @@ export default function App() {
         if(data.comida) setComida(data.comida);
         if(data.nombresMesas) setNombresMesas(data.nombresMesas);
       } else {
-        // Si el documento no existe en la nube (primer uso), lo creamos
         setDoc(docRef, { auditorio: initAuditorio(), comida: initComida(), nombresMesas });
       }
     });
-    return () => unsub(); // Limpiar el listener al cerrar
+    return () => unsub(); 
   }, []);
 
   const syncToCloud = async (nuevoAuditorio, nuevaComida, nuevosNombres) => {
@@ -147,7 +146,7 @@ export default function App() {
     syncToCloud(null, null, nombresMesas);
   };
 
-  // --- RESPALDO LOCAL ---
+  // --- 4. RESPALDOS LOCALES (JSON) ---
   const descargarRespaldo = () => {
     const datos = { auditorio, comida, nombresMesas };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(datos));
@@ -159,7 +158,37 @@ export default function App() {
     document.body.removeChild(elementoEnlace);
   };
 
-  // --- 4. EXPORTACIÓN A EXCEL ---
+  const cargarRespaldo = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const parseado = JSON.parse(evt.target.result);
+        if(parseado.auditorio && parseado.comida) {
+          const auditorioSeguro = { ...initAuditorio(), ...parseado.auditorio };
+          const comidaSegura = { ...initComida(), ...parseado.comida };
+          const nombresSeguros = { ...nombresMesas, ...(parseado.nombresMesas || {}) };
+
+          setAuditorio(auditorioSeguro);
+          setComida(comidaSegura);
+          setNombresMesas(nombresSeguros);
+          
+          syncToCloud(auditorioSeguro, comidaSegura, nombresSeguros);
+          
+          alert('✅ Respaldo cargado y sincronizado en la nube correctamente.');
+        } else {
+          alert('❌ El archivo no tiene el formato correcto.');
+        }
+      } catch (error) {
+        alert("❌ Error al leer el archivo de respaldo.");
+      }
+      e.target.value = null;
+    };
+    reader.readAsText(file);
+  };
+
+  // --- 5. EXPORTACIÓN A EXCEL ---
   const exportarExcel = () => {
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 
@@ -241,7 +270,7 @@ export default function App() {
     XLSX.writeFile(wb, "Sembrado_Invitados_Completo.xlsx");
   };
 
-  // --- 5. CARGAR EXCEL ---
+  // --- 6. CARGAR EXCEL (LISTA INICIAL) ---
   const cargarExcel = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -269,7 +298,7 @@ export default function App() {
     reader.readAsArrayBuffer(file);
   };
 
-  // --- 6. EXPORTAR PDF ---
+  // --- 7. EXPORTAR PDF ---
   const exportarPDF = async () => {
     const pdf = new jsPDF('l', 'mm', 'a4'); 
     const pdfWidth = pdf.internal.pageSize.getWidth(); 
@@ -317,7 +346,7 @@ export default function App() {
     }
   };
 
-  // --- 7. ARRASTRAR Y SOLTAR ---
+  // --- 8. ARRASTRAR Y SOLTAR ---
   const onDragEnd = (result) => {
     const { source, destination } = result;
     if (!destination) return;
@@ -419,9 +448,16 @@ export default function App() {
             </div>
             <hr style={{ borderTop: '1px solid #e2e8f0', margin: '5px 0' }} />
             
-            <button onClick={descargarRespaldo} style={{ backgroundColor: '#6366f1', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-              💾 Descargar Respaldo (JSON)
-            </button>
+            {/* BOTONES DE RESPALDO JSON */}
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={descargarRespaldo} style={{ flex: 1, backgroundColor: '#6366f1', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                💾 Descargar (JSON)
+              </button>
+              <label style={{ flex: 1, backgroundColor: '#f59e0b', color: 'white', padding: '10px', textAlign: 'center', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                📂 Subir (JSON)
+                <input type="file" accept=".json" onChange={cargarRespaldo} style={{ display: 'none' }} />
+              </label>
+            </div>
 
             <button onClick={exportarExcel} style={{ backgroundColor: '#16a34a', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
               📊 Exportar a Excel (4 Hojas)
@@ -554,7 +590,7 @@ export default function App() {
   );
 }
 
-// --- 8. COMPONENTES REFINADOS ---
+// --- 9. COMPONENTES REFINADOS ---
 function Silla({ id, ocupante, vista, busqueda, onEdit }) {
   const isAuditorio = vista === 'auditorio'; const width = isAuditorio ? '120px' : '100%'; const minWidth = isAuditorio ? '120px' : '85px'; const height = isAuditorio ? '95px' : '75px'; const flexShrink = isAuditorio ? 0 : 1; const arrOcupante = Array.isArray(ocupante) ? ocupante : [];
   return (
