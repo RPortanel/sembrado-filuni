@@ -214,25 +214,31 @@ export default function App() {
   // --- 5. EXPORTACIÓN A EXCEL ---
   const exportarExcel = () => {
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
-
-    // ORDENACIÓN JERÁRQUICA PERFECTA DEL AUDITORIO
     const datosAuditorio = [];
     
-    // 1. Estrado
+    // 1. Estrado (1 al 7)
     for (let i = 1; i <= 7; i++) {
       const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
-      datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': ocupante ? ocupante.dependencia : '', 'Nombre': ocupante ? ocupante.nombre : '', 'Cargo': ocupante ? ocupante.cargo : '' });
+      if (ocupante) {
+        datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': ocupante.dependencia || '', 'Nombre': ocupante.nombre || '', 'Cargo': ocupante.cargo || '' });
+      } else {
+        datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': '', 'Nombre': '[ Vacío ]', 'Cargo': '' });
+      }
     }
     
-    // 2. Filas del 1 al 10 en orden
+    // 2. Filas (1 al 10)
     for (let f = 1; f <= 10; f++) {
       for (let s = 1; s <= 13; s++) {
-        // Ignorar espacios virtuales
+        // Ignorar TV UNAM y Pasillo central
         if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) continue;
         if (f >= 7 && f <= 10 && s === 7) continue;
 
         const ocupante = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
-        datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': ocupante ? ocupante.dependencia : '', 'Nombre': ocupante ? ocupante.nombre : '', 'Cargo': ocupante ? ocupante.cargo : '' });
+        if (ocupante) {
+          datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': ocupante.dependencia || '', 'Nombre': ocupante.nombre || '', 'Cargo': ocupante.cargo || '' });
+        } else {
+          datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': '', 'Nombre': '[ Vacío ]', 'Cargo': '' });
+        }
       }
     }
 
@@ -241,7 +247,11 @@ export default function App() {
       for(let s=1; s<=10; s++) {
         const ocupantes = comida[`mesa_${m}_silla_${s}`] || [];
         const ocupante = ocupantes[0];
-        datosComida.push({ 'Mesa': nombresMesas[`mesa_${m}`], 'Asiento': `Silla ${s}`, 'Dependencia': ocupante ? ocupante.dependencia : '', 'Nombre': ocupante ? ocupante.nombre : '', 'Cargo': ocupante ? ocupante.cargo : '' });
+        if (ocupante) {
+            datosComida.push({ 'Mesa': nombresMesas[`mesa_${m}`], 'Asiento': `Silla ${s}`, 'Dependencia': ocupante.dependencia || '', 'Nombre': ocupante.nombre || '', 'Cargo': ocupante.cargo || '' });
+        } else {
+            datosComida.push({ 'Mesa': nombresMesas[`mesa_${m}`], 'Asiento': `Silla ${s}`, 'Dependencia': '', 'Nombre': '[ Vacío ]', 'Cargo': '' });
+        }
       }
     });
 
@@ -589,12 +599,14 @@ export default function App() {
                       </div>
                     </div>
                     
-                    {/* ENCABEZADO ASIENTOS - HOJA 1 (Alineación corregida) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '0 15px', border: '1px solid transparent', boxSizing: 'border-box', height: '30px', width: '100%' }}>
+                    {/* ENCABEZADO ASIENTOS - HOJA 1 (Caja estructural idéntica a las filas) */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: 'transparent', padding: '0 15px', borderRadius: '6px', border: '1px solid transparent', boxSizing: 'border-box' }}>
                       <div style={{ width: '60px', flexShrink: 0 }} /> 
                       <div style={{ display: 'flex', gap: '10px' }}>
                         {Array.from({ length: 13 }, (_, sIndex) => (
-                          <div key={`num_guia_b1_${sIndex+1}`} style={{ width: '120px', minWidth: '120px', flexShrink: 0, textAlign: 'center', color: '#64748b', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Asiento {sIndex + 1}</div>
+                          <div key={`num_guia_b1_${sIndex+1}`} style={{ width: '120px', minWidth: '120px', flexShrink: 0, textAlign: 'center', color: '#64748b', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', border: '2px solid transparent', boxSizing: 'border-box' }}>
+                            Asiento {sIndex + 1}
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -627,12 +639,14 @@ export default function App() {
                   {/* HOJA 2 */}
                   <div id="auditorio-parte-2" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', alignItems: 'center', backgroundColor: 'white' }}>
                     
-                    {/* ENCABEZADO ASIENTOS - HOJA 2 (Alineación corregida) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '0 15px', border: '1px solid transparent', boxSizing: 'border-box', height: '30px', width: '100%' }}>
+                    {/* ENCABEZADO ASIENTOS - HOJA 2 (Caja estructural idéntica a las filas) */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: 'transparent', padding: '0 15px', borderRadius: '6px', border: '1px solid transparent', boxSizing: 'border-box' }}>
                       <div style={{ width: '60px', flexShrink: 0 }} /> 
                       <div style={{ display: 'flex', gap: '10px' }}>
                         {Array.from({ length: 13 }, (_, sIndex) => (
-                          <div key={`num_guia_b2_${sIndex+1}`} style={{ width: '120px', minWidth: '120px', flexShrink: 0, textAlign: 'center', color: '#64748b', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Asiento {sIndex + 1}</div>
+                          <div key={`num_guia_b2_${sIndex+1}`} style={{ width: '120px', minWidth: '120px', flexShrink: 0, textAlign: 'center', color: '#64748b', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', border: '2px solid transparent', boxSizing: 'border-box' }}>
+                            Asiento {sIndex + 1}
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -696,7 +710,7 @@ function Silla({ id, ocupante, vista, busqueda, onEdit }) {
   return (
     <Droppable droppableId={id} type="invitado">
       {(provided, snapshot) => {
-        let borderColor = estaOcupada ? 'none' : '2px dashed #94a3b8';
+        let borderColor = estaOcupada ? '2px solid transparent' : '2px dashed #94a3b8';
         let bgColor = estaOcupada ? 'transparent' : 'rgba(255,255,255,0.5)';
         
         if (snapshot.isDraggingOver) {
