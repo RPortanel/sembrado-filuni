@@ -66,7 +66,6 @@ const getExcelStyle = (dependencia) => {
   return { fill: { patternType: 'solid', fgColor: { rgb: bg } }, font: { color: { rgb: text }, bold: true }, alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 };
 
-// 12 Colores de Mesas
 const paletaMesas = [
   { bg: '#fee2e2', border: '#ef4444' }, { bg: '#fef3c7', border: '#f59e0b' }, { bg: '#dcfce7', border: '#22c55e' }, 
   { bg: '#e0f2fe', border: '#0ea5e9' }, { bg: '#f3e8ff', border: '#a855f7' }, { bg: '#ffedd5', border: '#f97316' },
@@ -83,6 +82,10 @@ export default function App() {
     mesa_6: 'Mesa 6', mesa_7: 'Mesa 7', mesa_8: 'Mesa 8', mesa_9: 'Mesa 9', mesa_10: 'Mesa 10', 
     mesa_11: 'Mesa 11', mesa_12: 'Mesa 12' 
   });
+  
+  // Estado para rastrear el orden visual de las mesas
+  const [ordenMesas, setOrdenMesas] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+
   const [zoom, setZoom] = useState(1); 
   const [busquedaBanca, setBusquedaBanca] = useState('');
   const [busquedaLienzo, setBusquedaLienzo] = useState('');
@@ -98,19 +101,21 @@ export default function App() {
         if(data.auditorio) setAuditorio(data.auditorio);
         if(data.comida) setComida(data.comida);
         if(data.nombresMesas) setNombresMesas(data.nombresMesas);
+        if(data.ordenMesas) setOrdenMesas(data.ordenMesas);
       } else {
-        setDoc(docRef, { auditorio: initAuditorio(), comida: initComida(), nombresMesas });
+        setDoc(docRef, { auditorio: initAuditorio(), comida: initComida(), nombresMesas, ordenMesas });
       }
     });
     return () => unsub(); 
   }, []);
 
-  const syncToCloud = async (nuevoAuditorio, nuevaComida, nuevosNombres) => {
+  const syncToCloud = async (nuevoAuditorio, nuevaComida, nuevosNombres, nuevoOrden) => {
     try {
       await setDoc(doc(db, 'eventos', 'filuni2026'), {
         auditorio: nuevoAuditorio || auditorio,
         comida: nuevaComida || comida,
-        nombresMesas: nuevosNombres || nombresMesas
+        nombresMesas: nuevosNombres || nombresMesas,
+        ordenMesas: nuevoOrden || ordenMesas
       });
     } catch(error) {
       console.error("Error sincronizando a Firebase:", error);
@@ -125,30 +130,24 @@ export default function App() {
     Object.keys(nuevoAuditorio).forEach(key => {
         nuevoAuditorio[key] = nuevoAuditorio[key].map(inv => inv.id === id ? { ...inv, [propBloqueo]: !inv[propBloqueo] } : inv);
     });
-    if (nuevoAuditorio.banca) {
-      nuevoAuditorio.banca.sort((a, b) => (a.bloqueado_auditorio === b.bloqueado_auditorio ? 0 : a.bloqueado_auditorio ? 1 : -1));
-    }
+    if (nuevoAuditorio.banca) nuevoAuditorio.banca.sort((a, b) => (a.bloqueado_auditorio === b.bloqueado_auditorio ? 0 : a.bloqueado_auditorio ? 1 : -1));
 
     const nuevaComida = { ...comida };
     Object.keys(nuevaComida).forEach(key => {
         nuevaComida[key] = nuevaComida[key].map(inv => inv.id === id ? { ...inv, [propBloqueo]: !inv[propBloqueo] } : inv);
     });
-    if (nuevaComida.banca) {
-      nuevaComida.banca.sort((a, b) => (a.bloqueado_comida === b.bloqueado_comida ? 0 : a.bloqueado_comida ? 1 : -1));
-    }
+    if (nuevaComida.banca) nuevaComida.banca.sort((a, b) => (a.bloqueado_comida === b.bloqueado_comida ? 0 : a.bloqueado_comida ? 1 : -1));
 
-    setAuditorio(nuevoAuditorio);
-    setComida(nuevaComida);
-    syncToCloud(nuevoAuditorio, nuevaComida, null);
+    setAuditorio(nuevoAuditorio); setComida(nuevaComida);
+    syncToCloud(nuevoAuditorio, nuevaComida, null, null);
   };
 
   const eliminarInvitadoDeBanca = (id) => {
     if (!window.confirm("¿Seguro que deseas eliminar a este invitado de todo el evento?")) return;
     const nuevoAuditorio = { ...auditorio, banca: auditorio.banca.filter(inv => inv.id !== id) };
     const nuevaComida = { ...comida, banca: comida.banca.filter(inv => inv.id !== id) };
-    setAuditorio(nuevoAuditorio);
-    setComida(nuevaComida);
-    syncToCloud(nuevoAuditorio, nuevaComida, null);
+    setAuditorio(nuevoAuditorio); setComida(nuevaComida);
+    syncToCloud(nuevoAuditorio, nuevaComida, null, null);
   };
 
   const guardarEdicion = (invitadoActualizado) => {
@@ -162,30 +161,22 @@ export default function App() {
     
     const nuevoAuditorio = actualizarLayout(auditorio);
     const nuevaComida = actualizarLayout(comida);
-    setAuditorio(nuevoAuditorio);
-    setComida(nuevaComida);
-    syncToCloud(nuevoAuditorio, nuevaComida, null);
+    setAuditorio(nuevoAuditorio); setComida(nuevaComida);
+    syncToCloud(nuevoAuditorio, nuevaComida, null, null);
     setInvitadoEditando(null); 
   };
 
-  const manejarEdicionNombreMesa = (m, valor) => {
-    setNombresMesas(prev => ({...prev, [`mesa_${m}`]: valor}));
-  };
-
-  const manejarBlurNombreMesa = () => {
-    syncToCloud(null, null, nombresMesas);
-  };
+  const manejarEdicionNombreMesa = (m, valor) => setNombresMesas(prev => ({...prev, [`mesa_${m}`]: valor}));
+  const manejarBlurNombreMesa = () => syncToCloud(null, null, nombresMesas, null);
 
   // --- 4. RESPALDOS LOCALES (JSON) ---
   const descargarRespaldo = () => {
-    const datos = { auditorio, comida, nombresMesas };
+    const datos = { auditorio, comida, nombresMesas, ordenMesas };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(datos));
     const elementoEnlace = document.createElement('a');
     elementoEnlace.setAttribute("href", dataStr);
     elementoEnlace.setAttribute("download", `Respaldo_Filuni_Nube_${new Date().toISOString().slice(0,10)}.json`);
-    document.body.appendChild(elementoEnlace);
-    elementoEnlace.click();
-    document.body.removeChild(elementoEnlace);
+    document.body.appendChild(elementoEnlace); elementoEnlace.click(); document.body.removeChild(elementoEnlace);
   };
 
   const cargarRespaldo = (e) => {
@@ -199,12 +190,10 @@ export default function App() {
           const auditorioSeguro = { ...initAuditorio(), ...parseado.auditorio };
           const comidaSegura = { ...initComida(), ...parseado.comida };
           const nombresSeguros = { ...nombresMesas, ...(parseado.nombresMesas || {}) };
+          const ordenSeguro = parseado.ordenMesas || [1,2,3,4,5,6,7,8,9,10,11,12];
 
-          setAuditorio(auditorioSeguro);
-          setComida(comidaSegura);
-          setNombresMesas(nombresSeguros);
-          
-          syncToCloud(auditorioSeguro, comidaSegura, nombresSeguros);
+          setAuditorio(auditorioSeguro); setComida(comidaSegura); setNombresMesas(nombresSeguros); setOrdenMesas(ordenSeguro);
+          syncToCloud(auditorioSeguro, comidaSegura, nombresSeguros, ordenSeguro);
           alert('✅ Respaldo cargado y sincronizado en la nube correctamente.');
         } else { alert('❌ El archivo no tiene el formato correcto.'); }
       } catch (error) { alert("❌ Error al leer el archivo de respaldo."); }
@@ -227,12 +216,13 @@ export default function App() {
     });
 
     const datosComida = [];
-    Object.keys(comida).forEach(key => {
-      if (key === 'banca') return;
-      const ocupantes = comida[key || []] || [];
-      const ocupante = ocupantes[0];
-      const p = key.split('_');
-      datosComida.push({ 'Mesa': nombresMesas[`mesa_${p[1]}`], 'Asiento': `Silla ${p[3]}`, 'Dependencia': ocupante ? ocupante.dependencia : '', 'Nombre': ocupante ? ocupante.nombre : '', 'Cargo': ocupante ? ocupante.cargo : '' });
+    // Exportamos en el orden visual actual
+    ordenMesas.forEach(m => {
+      for(let s=1; s<=10; s++) {
+        const ocupantes = comida[`mesa_${m}_silla_${s}`] || [];
+        const ocupante = ocupantes[0];
+        datosComida.push({ 'Mesa': nombresMesas[`mesa_${m}`], 'Asiento': `Silla ${s}`, 'Dependencia': ocupante ? ocupante.dependencia : '', 'Nombre': ocupante ? ocupante.nombre : '', 'Cargo': ocupante ? ocupante.cargo : '' });
+      }
     });
 
     const matrizAuditorio = [];
@@ -243,8 +233,7 @@ export default function App() {
         const oc = sillaInfo[0];
         filaEstrado.push(oc ? { v: `${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
     }
-    matrizAuditorio.push(filaEstrado);
-    matrizAuditorio.push([]); 
+    matrizAuditorio.push(filaEstrado); matrizAuditorio.push([]); 
     
     for(let f=1; f<=10; f++) {
         matrizAuditorio.push([{ v: `FILA ${f}`, s: { font: { bold: true } } }]);
@@ -255,37 +244,29 @@ export default function App() {
                  else filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase });
                  continue;
              }
-             if (f >= 7 && f <= 10 && s === 7) {
-                 filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase }); 
-                 continue;
-             }
-             const sillaInfo = auditorio[`fila_${f}_silla_${s}`] || [];
-             const oc = sillaInfo[0];
+             if (f >= 7 && f <= 10 && s === 7) { filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase }); continue; }
+             const oc = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
              filaAsientos.push(oc ? { v: `${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
         }
         matrizAuditorio.push(filaAsientos);
-        if (f === 6) {
-          matrizAuditorio.push([]);
-          matrizAuditorio.push(["", "", "", "", "", { v: "============= P A S I L L O =============", t: 's', s: { font: { bold: true, color: { rgb: "475569" } }, alignment: { horizontal: 'center' } } }]);
-        }
+        if (f === 6) { matrizAuditorio.push([]); matrizAuditorio.push(["", "", "", "", "", { v: "============= P A S I L L O =============", t: 's', s: { font: { bold: true, color: { rgb: "475569" } }, alignment: { horizontal: 'center' } } }]); }
         matrizAuditorio.push([]); 
     }
 
     const matrizComida = [];
-    for(let m=1; m<=12; m++) { 
+    // Matriz en base al orden acomodado visualmente
+    ordenMesas.forEach((m) => {
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
         for(let fila=0; fila<5; fila++) {
-            const s1 = (fila * 2) + 1;
-            const s2 = (fila * 2) + 2;
-            const o1 = (comida[`mesa_${m}_silla_${s1}`] || [])[0];
-            const o2 = (comida[`mesa_${m}_silla_${s2}`] || [])[0];
+            const s1 = (fila * 2) + 1; const s2 = (fila * 2) + 2;
+            const o1 = (comida[`mesa_${m}_silla_${s1}`] || [])[0]; const o2 = (comida[`mesa_${m}_silla_${s2}`] || [])[0];
             matrizComida.push([
               o1 ? { v: `${o1.nombre}\n${o1.cargo}`, t: 's', s: getExcelStyle(o1.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }, 
               o2 ? { v: `${o2.nombre}\n${o2.cargo}`, t: 's', s: getExcelStyle(o2.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }
             ]);
         }
         matrizComida.push([]);
-    }
+    });
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosAuditorio), "Lista Auditorio");
@@ -315,11 +296,9 @@ export default function App() {
         const nuevoAuditorio = { ...auditorio, banca: [...auditorio.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_auditorio === b.bloqueado_auditorio ? 0 : a.bloqueado_auditorio ? 1 : -1)) };
         const nuevaComida = { ...comida, banca: [...comida.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_comida === b.bloqueado_comida ? 0 : a.bloqueado_comida ? 1 : -1)) };
         
-        setAuditorio(nuevoAuditorio);
-        setComida(nuevaComida);
-        syncToCloud(nuevoAuditorio, nuevaComida, null);
-        alert(`✅ Se cargaron y sincronizaron ${nuevosInvitados.length} invitados.`);
-        e.target.value = null; 
+        setAuditorio(nuevoAuditorio); setComida(nuevaComida);
+        syncToCloud(nuevoAuditorio, nuevaComida, null, null);
+        alert(`✅ Se cargaron y sincronizaron ${nuevosInvitados.length} invitados.`); e.target.value = null; 
       } catch (error) { alert("❌ Error al leer el Excel. Revisa el formato."); }
     };
     reader.readAsArrayBuffer(file);
@@ -328,11 +307,9 @@ export default function App() {
   // --- 7. EXPORTAR PDF ---
   const exportarPDF = async () => {
     const pdf = new jsPDF('l', 'mm', 'a4'); 
-    const pdfWidth = pdf.internal.pageSize.getWidth(); 
-    const pdfHeightSheet = pdf.internal.pageSize.getHeight(); 
+    const pdfWidth = pdf.internal.pageSize.getWidth(); const pdfHeightSheet = pdf.internal.pageSize.getHeight(); 
 
-    const contAuditorio = document.getElementById('contenedor-auditorio');
-    const contComida = document.getElementById('contenedor-comida');
+    const contAuditorio = document.getElementById('contenedor-auditorio'); const contComida = document.getElementById('contenedor-comida');
     let overAuditorio = ''; let overComida = '';
     
     if (contAuditorio) { overAuditorio = contAuditorio.style.overflowX; contAuditorio.style.overflowX = 'visible'; }
@@ -373,11 +350,29 @@ export default function App() {
     }
   };
 
-  // --- 8. ARRASTRAR Y SOLTAR ---
+  // --- 8. ARRASTRAR Y SOLTAR MÁSTER ---
   const onDragEnd = (result) => {
-    const { source, destination } = result;
+    const { source, destination, type } = result;
     if (!destination) return;
 
+    // LÓGICA DE REORDENAMIENTO DE MESAS
+    if (type === 'mesa') {
+      const srcRow = parseInt(source.droppableId.split('_')[1]);
+      const destRow = parseInt(destination.droppableId.split('_')[1]);
+      
+      const srcAbsIndex = (srcRow * 3) + source.index;
+      const destAbsIndex = (destRow * 3) + destination.index;
+
+      const nuevoOrden = Array.from(ordenMesas);
+      const [mesaMovida] = nuevoOrden.splice(srcAbsIndex, 1);
+      nuevoOrden.splice(destAbsIndex, 0, mesaMovida);
+
+      setOrdenMesas(nuevoOrden);
+      syncToCloud(null, null, null, nuevoOrden);
+      return;
+    }
+
+    // LÓGICA DE TARJETAS DE INVITADOS
     const estadoActivo = vistaActual === 'auditorio' ? auditorio : comida;
 
     if (source.droppableId === destination.droppableId) {
@@ -387,14 +382,13 @@ export default function App() {
       
       const nuevoEstado = { ...estadoActivo, [source.droppableId]: nuevaLista };
       if (vistaActual === 'auditorio') setAuditorio(nuevoEstado); else setComida(nuevoEstado);
-      syncToCloud(vistaActual === 'auditorio' ? nuevoEstado : null, vistaActual === 'comida' ? nuevoEstado : null, null);
+      syncToCloud(vistaActual === 'auditorio' ? nuevoEstado : null, vistaActual === 'comida' ? nuevoEstado : null, null, null);
       return;
     }
 
-    // La alerta por ocupación casi nunca saltará por la mejora del 'isDropDisabled'
     if (destination.droppableId !== 'banca' && (estadoActivo[destination.droppableId] || []).length >= 1) {
-      alert('Esta silla ya está ocupada.');
-      return;
+      // Por la mejora del 'isDropDisabled', esta alerta ya casi no es necesaria, pero la dejamos por seguridad.
+      alert('Esta silla ya está ocupada.'); return;
     }
 
     const nuevoEstado = { ...estadoActivo };
@@ -413,50 +407,58 @@ export default function App() {
     nuevoEstado[destination.droppableId] = destinoLista;
 
     if (vistaActual === 'auditorio') setAuditorio(nuevoEstado); else setComida(nuevoEstado);
-    syncToCloud(vistaActual === 'auditorio' ? nuevoEstado : null, vistaActual === 'comida' ? nuevoEstado : null, null);
+    syncToCloud(vistaActual === 'auditorio' ? nuevoEstado : null, vistaActual === 'comida' ? nuevoEstado : null, null, null);
   };
 
   const layoutActivo = vistaActual === 'auditorio' ? auditorio : comida;
 
-  // Lógica para los contadores
   const ocupantesAuditorio = Object.keys(auditorio).reduce((acc, key) => {
-    if (key !== 'banca' && !key.includes('estrado')) {
-      return acc + (auditorio[key] || []).length;
-    }
+    if (key !== 'banca' && !key.includes('estrado')) return acc + (auditorio[key] || []).length;
     return acc;
   }, 0);
 
   const ocupantesComida = Object.keys(comida).reduce((acc, key) => {
-    if (key !== 'banca') {
-      return acc + (comida[key] || []).length;
-    }
+    if (key !== 'banca') return acc + (comida[key] || []).length;
     return acc;
   }, 0);
 
-  const renderMesaLayout = (m) => (
-    <div key={`mesa_${m}`} style={{ width: '320px', backgroundColor: paletaMesas[m - 1].bg, border: `3px solid ${paletaMesas[m - 1].border}`, borderRadius: '8px', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', flexShrink: 0 }}>
-      <div style={{ width: '100%', marginBottom: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <input 
-          type="text" 
-          value={nombresMesas[`mesa_${m}`] || ''} 
-          onChange={(e) => manejarEdicionNombreMesa(m, e.target.value)}
-          onBlur={manejarBlurNombreMesa} 
-          style={{ width: '100%', height: '40px', lineHeight: '36px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '0 10px', borderRadius: '4px', border: '1px solid white', backgroundColor: 'rgba(255,255,255,0.7)', outline: 'none', boxSizing: 'border-box', fontFamily: 'sans-serif' }} 
-        />
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '100%' }}>
-        {Array.from({ length: 10 }, (_, s) => {
-          const ocupante = layoutActivo[`mesa_${m}_silla_${s+1}`] || [];
-          return <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />
-        })}
-      </div>
-    </div>
+  // Divide las mesas en bloques de 3 para el PDF y el render de cuadrícula
+  const bloquesMesas = [];
+  for (let i = 0; i < ordenMesas.length; i += 3) {
+    bloquesMesas.push(ordenMesas.slice(i, i + 3));
+  }
+
+  const renderMesaLayout = (m, indexWithinRow) => (
+    <Draggable key={`mesa_draggable_${m}`} draggableId={`mesa_draggable_${m}`} index={indexWithinRow}>
+      {(provided, snapshot) => (
+        <div 
+          ref={provided.innerRef} 
+          {...provided.draggableProps} 
+          style={{ ...provided.draggableProps.style, width: '320px', backgroundColor: paletaMesas[m - 1].bg, border: `3px solid ${paletaMesas[m - 1].border}`, borderRadius: '8px', padding: '15px 20px 20px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: snapshot.isDragging ? '0 15px 25px rgba(0,0,0,0.3)' : '0 4px 6px -1px rgba(0,0,0,0.1)', flexShrink: 0, opacity: snapshot.isDragging ? 0.9 : 1 }}
+        >
+          {/* HANDLE PARA ARRASTRAR LA MESA COMPLETA */}
+          <div {...provided.dragHandleProps} title="Arrastrar mesa para reordenarla" style={{ width: '100%', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: snapshot.isDragging ? 'grabbing' : 'grab', marginBottom: '8px', color: paletaMesas[m - 1].border, opacity: 0.6 }}>
+            <span style={{ fontSize: '18px', lineHeight: '0' }}>⣿</span>
+          </div>
+
+          <div style={{ width: '100%', marginBottom: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <input type="text" value={nombresMesas[`mesa_${m}`] || ''} onChange={(e) => manejarEdicionNombreMesa(m, e.target.value)} onBlur={manejarBlurNombreMesa} style={{ width: '100%', height: '40px', lineHeight: '36px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '0 10px', borderRadius: '4px', border: '1px solid white', backgroundColor: 'rgba(255,255,255,0.7)', outline: 'none', boxSizing: 'border-box', fontFamily: 'sans-serif' }} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '100%' }}>
+            {Array.from({ length: 10 }, (_, s) => {
+              const ocupante = layoutActivo[`mesa_${m}_silla_${s+1}`] || [];
+              return <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />
+            })}
+          </div>
+        </div>
+      )}
+    </Draggable>
   );
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', fontFamily: 'sans-serif', backgroundColor: '#f1f5f9', overflow: 'hidden' }}>
       
-      {/* MODAL DE EDICIÓN FLOTANTE */}
+      {/* MODAL EDICIÓN */}
       {invitadoEditando && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 99999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '8px', width: '350px', display: 'flex', flexDirection: 'column', gap: '15px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
@@ -482,7 +484,7 @@ export default function App() {
       )}
 
       <DragDropContext onDragEnd={onDragEnd}>
-        {/* BANCA Y CONTROLES */}
+        {/* PANEL BANCA */}
         <div style={{ width: '320px', flexShrink: 0, backgroundColor: 'white', padding: '15px', borderRight: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', zIndex: 10 }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             Panel de Control
@@ -492,8 +494,7 @@ export default function App() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px' }}>
             <div style={{ display: 'flex', gap: '8px' }}>
               <label style={{ flex: 1, backgroundColor: '#10b981', color: 'white', padding: '8px', textAlign: 'center', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                + Cargar Lista
-                <input type="file" accept=".xlsx, .xls" onChange={cargarExcel} style={{ display: 'none' }} />
+                + Cargar Lista <input type="file" accept=".xlsx, .xls" onChange={cargarExcel} style={{ display: 'none' }} />
               </label>
               <button onClick={() => setVistaActual(vistaActual === 'auditorio' ? 'comida' : 'auditorio')} style={{ flex: 1, backgroundColor: '#3b82f6', color: 'white', padding: '8px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                 Ver {vistaActual === 'auditorio' ? 'Comida' : 'Auditorio'}
@@ -501,23 +502,15 @@ export default function App() {
             </div>
             <hr style={{ borderTop: '1px solid #e2e8f0', margin: '5px 0' }} />
             
-            {/* BOTONES DE RESPALDO JSON */}
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={descargarRespaldo} style={{ flex: 1, backgroundColor: '#6366f1', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                💾 Descargar (JSON)
-              </button>
+              <button onClick={descargarRespaldo} style={{ flex: 1, backgroundColor: '#6366f1', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>💾 Descargar (JSON)</button>
               <label style={{ flex: 1, backgroundColor: '#f59e0b', color: 'white', padding: '10px', textAlign: 'center', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                📂 Subir (JSON)
-                <input type="file" accept=".json" onChange={cargarRespaldo} style={{ display: 'none' }} />
+                📂 Subir (JSON) <input type="file" accept=".json" onChange={cargarRespaldo} style={{ display: 'none' }} />
               </label>
             </div>
 
-            <button onClick={exportarExcel} style={{ backgroundColor: '#16a34a', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-              📊 Exportar a Excel (4 Hojas)
-            </button>
-            <button onClick={exportarPDF} style={{ backgroundColor: '#ef4444', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-              📄 Exportar Plano PDF
-            </button>
+            <button onClick={exportarExcel} style={{ backgroundColor: '#16a34a', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>📊 Exportar a Excel (4 Hojas)</button>
+            <button onClick={exportarPDF} style={{ backgroundColor: '#ef4444', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>📄 Exportar Plano PDF</button>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -525,7 +518,7 @@ export default function App() {
              <input type="text" placeholder="🔍 Buscar..." value={busquedaBanca} onChange={(e) => setBusquedaBanca(e.target.value)} style={{ width: '130px', padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none' }} />
           </div>
           
-          <Droppable droppableId="banca">
+          <Droppable droppableId="banca" type="invitado">
             {(provided) => (
               <div {...provided.droppableProps} ref={provided.innerRef} style={{ flexGrow: 1, overflowY: 'auto', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '4px', minHeight: '100px' }}>
                 {(layoutActivo.banca || []).map((invitado, index) => {
@@ -557,14 +550,10 @@ export default function App() {
             
             <div style={{ textAlign: 'center', marginBottom: '30px', color: '#475569', fontSize: '14px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', gap: '20px' }}>
                {vistaActual === 'auditorio' && (
-                 <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '6px 12px', borderRadius: '20px' }}>
-                   👥 Asistentes Auditorio: {ocupantesAuditorio}
-                 </span>
+                 <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '6px 12px', borderRadius: '20px' }}>👥 Asistentes Auditorio: {ocupantesAuditorio}</span>
                )}
                {vistaActual === 'comida' && (
-                 <span style={{ backgroundColor: '#fef3c7', color: '#b45309', padding: '6px 12px', borderRadius: '20px' }}>
-                   🍽️ Asistentes Comida: {ocupantesComida}
-                 </span>
+                 <span style={{ backgroundColor: '#fef3c7', color: '#b45309', padding: '6px 12px', borderRadius: '20px' }}>🍽️ Asistentes Comida: {ocupantesComida}</span>
                )}
             </div>
 
@@ -640,14 +629,27 @@ export default function App() {
               </div>
             )}
 
-            {/* VISTA COMIDA */}
+            {/* VISTA COMIDA (Con Drag and Drop de Mesas) */}
             {vistaActual === 'comida' && (
               <div id="contenedor-comida" style={{ width: '100%', overflowX: 'auto', paddingBottom: '20px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', alignItems: 'center', minWidth: 'max-content', padding: '0 20px' }}>
-                  <div id="comida-parte-1" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: '40px', padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>{Array.from({ length: 3 }, (_, i) => renderMesaLayout(i + 1))}</div>
-                  <div id="comida-parte-2" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: '40px', padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>{Array.from({ length: 3 }, (_, i) => renderMesaLayout(i + 4))}</div>
-                  <div id="comida-parte-3" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: '40px', padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>{Array.from({ length: 3 }, (_, i) => renderMesaLayout(i + 7))}</div>
-                  <div id="comida-parte-4" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: '40px', padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>{Array.from({ length: 3 }, (_, i) => renderMesaLayout(i + 10))}</div>
+                  
+                  {bloquesMesas.map((bloque, indexFila) => (
+                    <Droppable key={`mesas_fila_${indexFila}`} droppableId={`mesas_${indexFila}`} direction="horizontal" type="mesa">
+                      {(provided, snapshot) => (
+                        <div 
+                           id={`comida-parte-${indexFila + 1}`}
+                           ref={provided.innerRef} 
+                           {...provided.droppableProps} 
+                           style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: '40px', padding: '20px', backgroundColor: snapshot.isDraggingOver ? '#f8fafc' : 'white', borderRadius: '8px', minHeight: '350px', minWidth: '1100px', transition: 'background-color 0.2s' }}
+                        >
+                           {bloque.map((m, index) => renderMesaLayout(m, index))}
+                           {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
+                  ))}
+
                 </div>
               </div>
             )}
@@ -664,7 +666,7 @@ function Silla({ id, ocupante, vista, busqueda, onEdit }) {
   const estaOcupada = arrOcupante.length >= 1;
 
   return (
-    <Droppable droppableId={id} isDropDisabled={estaOcupada}>
+    <Droppable droppableId={id} isDropDisabled={estaOcupada} type="invitado">
       {(provided, snapshot) => (
         <div ref={provided.innerRef} {...provided.droppableProps} style={{ width, minWidth, height, flexShrink, border: estaOcupada ? 'none' : (snapshot.isDraggingOver ? '2px dashed #3b82f6' : '2px dashed #94a3b8'), backgroundColor: estaOcupada ? 'transparent' : (snapshot.isDraggingOver ? '#eff6ff' : 'rgba(255,255,255,0.5)'), borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', transition: 'background-color 0.2s, border 0.2s' }}>
           {!estaOcupada && <span style={{ fontSize: '10px', color: snapshot.isDraggingOver ? '#3b82f6' : '#94a3b8', fontWeight: 'bold' }}>{id.includes('silla') ? id.split('_').pop() : 'Silla'}</span>}
@@ -695,9 +697,7 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
           
           {isBanca && (
             <>
-              {/* Botón de Bloqueo a la izquierda */}
               <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onToggleLock(invitado.id)} title={isBloqueado ? "Desbloquear" : "Bloquear (mandar al final de la lista)"} style={{ position: 'absolute', top: '-6px', left: '-6px', width: '18px', height: '18px', backgroundColor: isBloqueado ? '#8b5cf6' : '#94a3b8', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >{isBloqueado ? '🔓' : '🔒'}</button>
-              {/* Botón de Eliminación a la derecha */}
               <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDelete(invitado.id)} title="Eliminar del evento" style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >×</button>
             </>
           )}
