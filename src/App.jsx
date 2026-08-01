@@ -121,7 +121,6 @@ export default function App() {
   const toggleBloqueoBanca = (id) => {
     const propBloqueo = vistaActual === 'auditorio' ? 'bloqueado_auditorio' : 'bloqueado_comida';
     
-    // Actualiza auditorio
     const nuevoAuditorio = { ...auditorio };
     Object.keys(nuevoAuditorio).forEach(key => {
         nuevoAuditorio[key] = nuevoAuditorio[key].map(inv => inv.id === id ? { ...inv, [propBloqueo]: !inv[propBloqueo] } : inv);
@@ -130,7 +129,6 @@ export default function App() {
       nuevoAuditorio.banca.sort((a, b) => (a.bloqueado_auditorio === b.bloqueado_auditorio ? 0 : a.bloqueado_auditorio ? 1 : -1));
     }
 
-    // Actualiza comida
     const nuevaComida = { ...comida };
     Object.keys(nuevaComida).forEach(key => {
         nuevaComida[key] = nuevaComida[key].map(inv => inv.id === id ? { ...inv, [propBloqueo]: !inv[propBloqueo] } : inv);
@@ -314,7 +312,6 @@ export default function App() {
           return { id: `excel-${Date.now()}-${index}`, dependencia: filaNormalizada.dependencia || '', nombre: filaNormalizada.nombre || 'Sin Nombre', cargo: filaNormalizada.cargo || 'Sin Cargo', bloqueado_auditorio: false, bloqueado_comida: false };
         });
 
-        // Aseguramos que se mantenga el orden de bloqueados abajo
         const nuevoAuditorio = { ...auditorio, banca: [...auditorio.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_auditorio === b.bloqueado_auditorio ? 0 : a.bloqueado_auditorio ? 1 : -1)) };
         const nuevaComida = { ...comida, banca: [...comida.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_comida === b.bloqueado_comida ? 0 : a.bloqueado_comida ? 1 : -1)) };
         
@@ -394,6 +391,7 @@ export default function App() {
       return;
     }
 
+    // La alerta por ocupación casi nunca saltará por la mejora del 'isDropDisabled'
     if (destination.droppableId !== 'banca' && (estadoActivo[destination.droppableId] || []).length >= 1) {
       alert('Esta silla ya está ocupada.');
       return;
@@ -406,7 +404,6 @@ export default function App() {
     const [invitadoMovido] = origenLista.splice(source.index, 1);
     destinoLista.splice(destination.index, 0, invitadoMovido);
 
-    // Si se regresó a la banca, mantener bloqueados al fondo
     if (destination.droppableId === 'banca') {
         const propBloqueo = vistaActual === 'auditorio' ? 'bloqueado_auditorio' : 'bloqueado_comida';
         destinoLista.sort((a, b) => (a[propBloqueo] === b[propBloqueo] ? 0 : a[propBloqueo] ? 1 : -1));
@@ -664,11 +661,13 @@ export default function App() {
 // --- 9. COMPONENTES REFINADOS ---
 function Silla({ id, ocupante, vista, busqueda, onEdit }) {
   const isAuditorio = vista === 'auditorio'; const width = isAuditorio ? '120px' : '100%'; const minWidth = isAuditorio ? '120px' : '85px'; const height = isAuditorio ? '95px' : '75px'; const flexShrink = isAuditorio ? 0 : 1; const arrOcupante = Array.isArray(ocupante) ? ocupante : [];
+  const estaOcupada = arrOcupante.length >= 1;
+
   return (
-    <Droppable droppableId={id}>
-      {(provided) => (
-        <div ref={provided.innerRef} {...provided.droppableProps} style={{ width, minWidth, height, flexShrink, border: arrOcupante.length === 0 ? '2px dashed #94a3b8' : 'none', backgroundColor: arrOcupante.length === 0 ? 'rgba(255,255,255,0.5)' : 'transparent', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
-          {arrOcupante.length === 0 && <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' }}>{id.includes('silla') ? id.split('_').pop() : 'Silla'}</span>}
+    <Droppable droppableId={id} isDropDisabled={estaOcupada}>
+      {(provided, snapshot) => (
+        <div ref={provided.innerRef} {...provided.droppableProps} style={{ width, minWidth, height, flexShrink, border: estaOcupada ? 'none' : (snapshot.isDraggingOver ? '2px dashed #3b82f6' : '2px dashed #94a3b8'), backgroundColor: estaOcupada ? 'transparent' : (snapshot.isDraggingOver ? '#eff6ff' : 'rgba(255,255,255,0.5)'), borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', transition: 'background-color 0.2s, border 0.2s' }}>
+          {!estaOcupada && <span style={{ fontSize: '10px', color: snapshot.isDraggingOver ? '#3b82f6' : '#94a3b8', fontWeight: 'bold' }}>{id.includes('silla') ? id.split('_').pop() : 'Silla'}</span>}
           {arrOcupante.map((invitado, index) => {
             const isBloq = vista === 'auditorio' ? invitado.bloqueado_auditorio : invitado.bloqueado_comida;
             return <Tarjeta key={invitado.id} invitado={invitado} index={index} enSilla={true} isBloqueado={isBloq} busqueda={busqueda} onEdit={onEdit} />
@@ -696,9 +695,9 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
           
           {isBanca && (
             <>
-              {/* Botón de Bloqueo/Desbloqueo reubicado a la izquierda */}
+              {/* Botón de Bloqueo a la izquierda */}
               <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onToggleLock(invitado.id)} title={isBloqueado ? "Desbloquear" : "Bloquear (mandar al final de la lista)"} style={{ position: 'absolute', top: '-6px', left: '-6px', width: '18px', height: '18px', backgroundColor: isBloqueado ? '#8b5cf6' : '#94a3b8', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >{isBloqueado ? '🔓' : '🔒'}</button>
-              {/* Botón de Eliminación (Derecha) */}
+              {/* Botón de Eliminación a la derecha */}
               <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDelete(invitado.id)} title="Eliminar del evento" style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >×</button>
             </>
           )}
