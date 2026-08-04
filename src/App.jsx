@@ -9,12 +9,14 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 // --- 1. GENERADORES DE ESTRUCTURAS ---
 const initAuditorio = () => {
   const layout = { banca: [] };
-  for (let i = 1; i <= 7; i++) layout[`estrado_silla_${i}`] = [];
+  // ESTRADO AUMENTADO A 8
+  for (let i = 1; i <= 8; i++) layout[`estrado_silla_${i}`] = [];
   
-  for (let f = 1; f <= 10; f++) {
+  // FILAS AUMENTADAS A 14
+  for (let f = 1; f <= 14; f++) {
     for (let s = 1; s <= 13; s++) {
       if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) continue;
-      if (f >= 7 && f <= 10 && s === 7) continue;
+      if (f >= 7 && f <= 14 && s === 7) continue; // Pasillo central se extiende hasta la 14
       layout[`fila_${f}_silla_${s}`] = [];
     }
   }
@@ -216,8 +218,8 @@ export default function App() {
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
     const datosAuditorio = [];
     
-    // 1. Estrado (1 al 7)
-    for (let i = 1; i <= 7; i++) {
+    // 1. Estrado (1 al 8)
+    for (let i = 1; i <= 8; i++) {
       const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
       if (ocupante) {
         datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': ocupante.dependencia || '', 'Nombre': ocupante.nombre || '', 'Cargo': ocupante.cargo || '' });
@@ -226,12 +228,11 @@ export default function App() {
       }
     }
     
-    // 2. Filas (1 al 10)
-    for (let f = 1; f <= 10; f++) {
+    // 2. Filas (1 al 14)
+    for (let f = 1; f <= 14; f++) {
       for (let s = 1; s <= 13; s++) {
-        // Ignorar TV UNAM y Pasillo central
         if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) continue;
-        if (f >= 7 && f <= 10 && s === 7) continue;
+        if (f >= 7 && f <= 14 && s === 7) continue;
 
         const ocupante = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
         if (ocupante) {
@@ -258,14 +259,14 @@ export default function App() {
     const matrizAuditorio = [];
     matrizAuditorio.push([{ v: "ESTRADO (Presidium)", s: { font: { bold: true } } }]);
     const filaEstrado = [];
-    for(let i=1; i<=7; i++) {
+    for(let i=1; i<=8; i++) {
         const sillaInfo = auditorio[`estrado_silla_${i}`] || [];
         const oc = sillaInfo[0];
         filaEstrado.push(oc ? { v: `${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
     }
     matrizAuditorio.push(filaEstrado); matrizAuditorio.push([]); 
     
-    for(let f=1; f<=10; f++) {
+    for(let f=1; f<=14; f++) {
         matrizAuditorio.push([{ v: `FILA ${f}`, s: { font: { bold: true } } }]);
         const filaAsientos = [];
         for(let s=1; s<=13; s++) {
@@ -274,7 +275,7 @@ export default function App() {
                  else filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase });
                  continue;
              }
-             if (f >= 7 && f <= 10 && s === 7) { filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase }); continue; }
+             if (f >= 7 && f <= 14 && s === 7) { filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase }); continue; }
              const oc = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
              filaAsientos.push(oc ? { v: `${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
         }
@@ -595,11 +596,11 @@ export default function App() {
                     <div style={{ backgroundColor: '#1e293b', padding: '20px 40px', borderRadius: '8px', border: '2px solid #0f172a', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
                       <h3 style={{ color: 'white', textAlign: 'center', marginBottom: '20px', letterSpacing: '2px' }}>ESTRADO (Presidium)</h3>
                       <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-                        {Array.from({ length: 7 }, (_, i) => <Silla key={`estrado_silla_${i+1}`} id={`estrado_silla_${i+1}`} ocupante={layoutActivo[`estrado_silla_${i+1}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />)}
+                        {Array.from({ length: 8 }, (_, i) => <Silla key={`estrado_silla_${i+1}`} id={`estrado_silla_${i+1}`} ocupante={layoutActivo[`estrado_silla_${i+1}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />)}
                       </div>
                     </div>
                     
-                    {/* ENCABEZADO ASIENTOS - HOJA 1 (Caja estructural idéntica a las filas) */}
+                    {/* ENCABEZADO ASIENTOS - HOJA 1 */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: 'transparent', padding: '0 15px', borderRadius: '6px', border: '1px solid transparent', boxSizing: 'border-box' }}>
                       <div style={{ width: '60px', flexShrink: 0 }} /> 
                       <div style={{ display: 'flex', gap: '10px' }}>
@@ -639,7 +640,7 @@ export default function App() {
                   {/* HOJA 2 */}
                   <div id="auditorio-parte-2" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', alignItems: 'center', backgroundColor: 'white' }}>
                     
-                    {/* ENCABEZADO ASIENTOS - HOJA 2 (Caja estructural idéntica a las filas) */}
+                    {/* ENCABEZADO ASIENTOS - HOJA 2 */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: 'transparent', padding: '0 15px', borderRadius: '6px', border: '1px solid transparent', boxSizing: 'border-box' }}>
                       <div style={{ width: '60px', flexShrink: 0 }} /> 
                       <div style={{ display: 'flex', gap: '10px' }}>
@@ -651,7 +652,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {Array.from({ length: 4 }, (_, fIndex) => {
+                    {Array.from({ length: 8 }, (_, fIndex) => {
                       const f = fIndex + 7;
                       return (
                         <div key={`fila_${f}`} style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0', height: '125px', boxSizing: 'border-box' }}>
@@ -659,7 +660,7 @@ export default function App() {
                           <div style={{ display: 'flex', gap: '10px' }}>
                             {Array.from({ length: 13 }, (_, sIndex) => {
                               const s = sIndex + 1;
-                              if (f >= 7 && f <= 10 && s === 7) return <div key={`pasillo_${f}_7`} style={{ width: '120px', height: '95px', flexShrink: 0 }} />;
+                              if (f >= 7 && f <= 14 && s === 7) return <div key={`pasillo_${f}_7`} style={{ width: '120px', height: '95px', flexShrink: 0 }} />;
                               return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />
                             })}
                           </div>
