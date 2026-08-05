@@ -11,11 +11,10 @@ const initAuditorio = () => {
   const layout = { banca: [] };
   for (let i = 1; i <= 8; i++) layout[`estrado_silla_${i}`] = [];
   
-  // FILAS AUMENTADAS A 16
   for (let f = 1; f <= 16; f++) {
     for (let s = 1; s <= 13; s++) {
       if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) continue;
-      if (f >= 7 && f <= 16 && s === 7) continue; // Pasillo central se extiende hasta la 16
+      if (f >= 7 && f <= 16 && s === 7) continue; 
       layout[`fila_${f}_silla_${s}`] = [];
     }
   }
@@ -85,6 +84,10 @@ export default function App() {
   });
   
   const [ordenMesas, setOrdenMesas] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  
+  // NUEVO: Estado para guardar el historial de cambios (Undo)
+  const [historial, setHistorial] = useState([]);
+
   const [zoom, setZoom] = useState(1); 
   const [busquedaBanca, setBusquedaBanca] = useState('');
   const [busquedaLienzo, setBusquedaLienzo] = useState('');
@@ -121,8 +124,45 @@ export default function App() {
     }
   };
 
+  // --- FUNCIÓN PARA GUARDAR MEMORIA ANTES DE CADA CAMBIO ---
+  const guardarEnHistorial = () => {
+    setHistorial(prev => {
+      // Guardamos una foto exacta y profunda de los datos actuales
+      const fotoActual = {
+        auditorio: JSON.parse(JSON.stringify(auditorio)),
+        comida: JSON.parse(JSON.stringify(comida)),
+        nombresMesas: JSON.parse(JSON.stringify(nombresMesas)),
+        ordenMesas: [...ordenMesas]
+      };
+      const nuevoHistorial = [...prev, fotoActual];
+      // Limitamos a los últimos 20 movimientos para no gastar memoria
+      if (nuevoHistorial.length > 20) nuevoHistorial.shift();
+      return nuevoHistorial;
+    });
+  };
+
+  // --- FUNCIÓN PARA DESHACER (UNDO) ---
+  const deshacerUltimaAccion = () => {
+    if (historial.length === 0) return;
+    
+    // Obtenemos el último estado guardado
+    const estadoAnterior = historial[historial.length - 1];
+    // Quitamos esa foto del historial porque ya la estamos usando
+    const nuevoHistorial = historial.slice(0, -1);
+    
+    setHistorial(nuevoHistorial);
+    setAuditorio(estadoAnterior.auditorio);
+    setComida(estadoAnterior.comida);
+    setNombresMesas(estadoAnterior.nombresMesas);
+    setOrdenMesas(estadoAnterior.ordenMesas);
+    
+    // Lo subimos a la nube para que el "Deshacer" aplique para todos
+    syncToCloud(estadoAnterior.auditorio, estadoAnterior.comida, estadoAnterior.nombresMesas, estadoAnterior.ordenMesas);
+  };
+
   // --- 3. LÓGICAS DE BLOQUEO, ELIMINACIÓN Y EDICIÓN ---
   const toggleBloqueoBanca = (id) => {
+    guardarEnHistorial(); // Guardar foto antes de modificar
     const propBloqueo = vistaActual === 'auditorio' ? 'bloqueado_auditorio' : 'bloqueado_comida';
     
     const nuevoAuditorio = { ...auditorio };
@@ -143,7 +183,8 @@ export default function App() {
 
   const eliminarInvitadoDeBanca = (id) => {
     if (!window.confirm("¿Seguro que deseas eliminar a este invitado de todo el evento?")) return;
-    
+    guardarEnHistorial(); // Guardar foto antes de modificar
+
     const purgarLayout = (layout) => {
       const nuevoLayout = { ...layout };
       Object.keys(nuevoLayout).forEach(key => {
@@ -161,6 +202,7 @@ export default function App() {
   };
 
   const guardarEdicion = (invitadoActualizado) => {
+    guardarEnHistorial(); // Guardar foto antes de modificar
     const actualizarLayout = (layout) => {
       const nuevoLayout = { ...layout };
       Object.keys(nuevoLayout).forEach(key => {
@@ -197,6 +239,7 @@ export default function App() {
       try {
         const parseado = JSON.parse(evt.target.result);
         if(parseado.auditorio && parseado.comida) {
+          guardarEnHistorial(); // Respaldar antes de sobreescribir masivamente
           const auditorioSeguro = { ...initAuditorio(), ...parseado.auditorio };
           const comidaSegura = { ...initComida(), ...parseado.comida };
           const nombresSeguros = { ...nombresMesas, ...(parseado.nombresMesas || {}) };
@@ -230,7 +273,6 @@ export default function App() {
     // 2. Filas (1 al 16)
     for (let f = 1; f <= 16; f++) {
       for (let s = 1; s <= 13; s++) {
-        // Ignorar TV UNAM y Pasillo central
         if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) continue;
         if (f >= 7 && f <= 16 && s === 7) continue;
 
@@ -317,6 +359,8 @@ export default function App() {
         const workbook = XLSX.read(data, { type: 'array' });
         const filasExcel = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
+        guardarEnHistorial(); // Guardar foto antes de cargar masivamente
+        
         const nuevosInvitados = filasExcel.map((fila, index) => {
           const filaNormalizada = {};
           Object.keys(fila).forEach(key => { filaNormalizada[key.toLowerCase().trim()] = fila[key]; });
@@ -384,6 +428,9 @@ export default function App() {
   const onDragEnd = (result) => {
     const { source, destination, type } = result;
     if (!destination) return;
+    
+    // Guardar foto de seguridad antes de cualquier movimiento exitoso
+    guardarEnHistorial();
 
     if (type === 'mesa') {
       const srcRow = parseInt(source.droppableId.split('_')[1]);
@@ -562,7 +609,20 @@ export default function App() {
 
         {/* LIENZO PRINCIPAL */}
         <div style={{ flexGrow: 1, overflow: 'auto', padding: '20px', backgroundColor: '#e2e8f0', position: 'relative' }}>
+          
+          {/* BARRA SUPERIOR FLOTANTE (BUSCADOR, ZOOM Y BOTÓN DESHACER) */}
           <div style={{ position: 'fixed', top: '20px', right: '30px', zIndex: 50, display: 'flex', gap: '15px', alignItems: 'center' }}>
+            
+            {/* NUEVO BOTON DESHACER */}
+            <button 
+              onClick={deshacerUltimaAccion} 
+              disabled={historial.length === 0} 
+              title={historial.length === 0 ? "Nada que deshacer" : "Deshacer último movimiento"}
+              style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: historial.length === 0 ? '#e2e8f0' : '#f43f5e', color: historial.length === 0 ? '#94a3b8' : 'white', fontWeight: 'bold', cursor: historial.length === 0 ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
+            >
+              ↩️ Deshacer
+            </button>
+
             <input type="text" placeholder="🔍 Buscar en sembrado..." value={busquedaLienzo} onChange={(e) => setBusquedaLienzo(e.target.value)} style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', width: '250px' }} />
             <div style={{ display: 'flex', gap: '5px', backgroundColor: 'white', padding: '5px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
               <button onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))} style={{ padding: '5px 12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', border: '1px solid #cbd5e1', borderRadius: '4px', backgroundColor: '#f8fafc' }}>-</button>
@@ -637,7 +697,7 @@ export default function App() {
                   {/* PASILLO CENTRAL */}
                   <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '30px 0', height: '45px', backgroundColor: '#cbd5e1', borderRadius: '6px', border: '2px dashed #94a3b8' }}><span style={{ fontWeight: 'bold', letterSpacing: '12px', color: '#475569', fontSize: '16px' }}>P A S I L L O</span></div>
 
-                  {/* HOJA 2 (Ahora de 10 filas) */}
+                  {/* HOJA 2 */}
                   <div id="auditorio-parte-2" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', alignItems: 'center', backgroundColor: 'white' }}>
                     
                     {/* ENCABEZADO ASIENTOS - HOJA 2 */}
