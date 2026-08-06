@@ -11,11 +11,9 @@ const initAuditorio = () => {
   const layout = { banca: [] };
   for (let i = 1; i <= 8; i++) layout[`estrado_silla_${i}`] = [];
   
-  // FILAS REAJUSTADAS A 14
   for (let f = 1; f <= 14; f++) {
     for (let s = 1; s <= 13; s++) {
       if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) continue;
-      // FILAS 7 A 14: Se omiten las sillas 6, 7 (pasillo) y 8
       if (f >= 7 && f <= 14 && (s === 6 || s === 7 || s === 8)) continue; 
       layout[`fila_${f}_silla_${s}`] = [];
     }
@@ -87,6 +85,7 @@ export default function App() {
   
   const [ordenMesas, setOrdenMesas] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   const [historial, setHistorial] = useState([]);
+  const [modoPresentacion, setModoPresentacion] = useState(false); // NUEVO ESTADO
   const [zoom, setZoom] = useState(1); 
   const [busquedaBanca, setBusquedaBanca] = useState('');
   const [busquedaLienzo, setBusquedaLienzo] = useState('');
@@ -618,8 +617,8 @@ export default function App() {
       )}
 
       <DragDropContext onDragEnd={onDragEnd}>
-        {/* PANEL BANCA */}
-        <div style={{ width: '320px', flexShrink: 0, backgroundColor: 'white', padding: '15px', borderRight: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', zIndex: 10 }}>
+        {/* PANEL BANCA (OCULTABLE) */}
+        <div style={{ width: '320px', flexShrink: 0, backgroundColor: 'white', padding: '15px', borderRight: '1px solid #cbd5e1', display: modoPresentacion ? 'none' : 'flex', flexDirection: 'column', zIndex: 10 }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             Panel de Control
             <span style={{ fontSize: '10px', backgroundColor: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '12px' }}>🟢 Sincronizado</span>
@@ -674,6 +673,16 @@ export default function App() {
         <div style={{ flexGrow: 1, overflow: 'auto', padding: '20px', backgroundColor: '#e2e8f0', position: 'relative' }}>
           
           <div style={{ position: 'fixed', top: '20px', right: '30px', zIndex: 50, display: 'flex', gap: '15px', alignItems: 'center' }}>
+            
+            {/* BOTÓN PANTALLA COMPLETA */}
+            <button 
+              onClick={() => setModoPresentacion(!modoPresentacion)}
+              title="Ocultar o Mostrar el Panel de Control Lateral"
+              style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: modoPresentacion ? '#f59e0b' : '#3b82f6', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
+            >
+              {modoPresentacion ? '🗗 Salir Pantalla Completa' : '🖥️ Pantalla Completa'}
+            </button>
+
             <button 
               onClick={deshacerUltimaAccion} 
               disabled={historial.length === 0} 
