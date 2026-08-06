@@ -11,10 +11,12 @@ const initAuditorio = () => {
   const layout = { banca: [] };
   for (let i = 1; i <= 8; i++) layout[`estrado_silla_${i}`] = [];
   
-  for (let f = 1; f <= 16; f++) {
+  // FILAS REAJUSTADAS A 14
+  for (let f = 1; f <= 14; f++) {
     for (let s = 1; s <= 13; s++) {
       if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) continue;
-      if (f >= 7 && f <= 16 && s === 7) continue; 
+      // FILAS 7 A 14: Se omiten las sillas 6, 7 (pasillo) y 8
+      if (f >= 7 && f <= 14 && (s === 6 || s === 7 || s === 8)) continue; 
       layout[`fila_${f}_silla_${s}`] = [];
     }
   }
@@ -149,7 +151,6 @@ export default function App() {
     syncToCloud(estadoAnterior.auditorio, estadoAnterior.comida, estadoAnterior.nombresMesas, estadoAnterior.ordenMesas);
   };
 
-  // --- OBTENER INVITADOS ÚNICOS (HERRAMIENTA PARA DIRECTORIO) ---
   const obtenerTodosLosInvitados = () => {
     const mapa = new Map();
     const extraer = (layout) => {
@@ -262,7 +263,7 @@ export default function App() {
     const wb = XLSX.utils.book_new();
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 
-    // HOJA 1: EL DIRECTORIO MAESTRO PARA CORRECCIONES
+    // HOJA 1: EL DIRECTORIO MAESTRO
     const directorio = obtenerTodosLosInvitados().map(inv => ({
       'ID_NO_TOCAR': inv.id,
       'Dependencia': inv.dependencia,
@@ -277,10 +278,10 @@ export default function App() {
       const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
       datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '' });
     }
-    for (let f = 1; f <= 16; f++) {
+    for (let f = 1; f <= 14; f++) {
       for (let s = 1; s <= 13; s++) {
         if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) continue;
-        if (f >= 7 && f <= 16 && s === 7) continue;
+        if (f >= 7 && f <= 14 && (s === 6 || s === 7 || s === 8)) continue;
         const ocupante = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
         datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '' });
       }
@@ -306,7 +307,7 @@ export default function App() {
         filaEstrado.push(oc ? { v: `${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
     }
     matrizAuditorio.push(filaEstrado); matrizAuditorio.push([]); 
-    for(let f=1; f <= 16; f++) {
+    for(let f=1; f <= 14; f++) {
         matrizAuditorio.push([{ v: `FILA ${f}`, s: { font: { bold: true } } }]);
         const filaAsientos = [];
         for(let s=1; s<=13; s++) {
@@ -315,7 +316,10 @@ export default function App() {
                  else filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase });
                  continue;
              }
-             if (f >= 7 && f <= 16 && s === 7) { filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase }); continue; }
+             if (f >= 7 && f <= 14 && (s === 6 || s === 7 || s === 8)) { 
+                 filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase }); 
+                 continue; 
+             }
              const oc = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
              filaAsientos.push(oc ? { v: `${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
         }
@@ -752,7 +756,7 @@ export default function App() {
                   {/* PASILLO CENTRAL */}
                   <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '30px 0', height: '45px', backgroundColor: '#cbd5e1', borderRadius: '6px', border: '2px dashed #94a3b8' }}><span style={{ fontWeight: 'bold', letterSpacing: '12px', color: '#475569', fontSize: '16px' }}>P A S I L L O</span></div>
 
-                  {/* HOJA 2 */}
+                  {/* HOJA 2 (Ajustada para Filas 7 a 14) */}
                   <div id="auditorio-parte-2" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', alignItems: 'center', backgroundColor: 'white' }}>
                     
                     {/* ENCABEZADO ASIENTOS - HOJA 2 */}
@@ -767,7 +771,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {Array.from({ length: 10 }, (_, fIndex) => {
+                    {Array.from({ length: 8 }, (_, fIndex) => {
                       const f = fIndex + 7;
                       return (
                         <div key={`fila_${f}`} style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0', height: '125px', boxSizing: 'border-box' }}>
@@ -775,7 +779,7 @@ export default function App() {
                           <div style={{ display: 'flex', gap: '10px' }}>
                             {Array.from({ length: 13 }, (_, sIndex) => {
                               const s = sIndex + 1;
-                              if (f >= 7 && f <= 16 && s === 7) return <div key={`pasillo_${f}_7`} style={{ width: '120px', height: '95px', flexShrink: 0 }} />;
+                              if (s === 6 || s === 7 || s === 8) return <div key={`pasillo_${f}_${s}`} style={{ width: '120px', height: '95px', flexShrink: 0 }} />;
                               return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />
                             })}
                           </div>
