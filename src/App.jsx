@@ -84,10 +84,7 @@ export default function App() {
   });
   
   const [ordenMesas, setOrdenMesas] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-  
-  // NUEVO: Estado para guardar el historial de cambios (Undo)
   const [historial, setHistorial] = useState([]);
-
   const [zoom, setZoom] = useState(1); 
   const [busquedaBanca, setBusquedaBanca] = useState('');
   const [busquedaLienzo, setBusquedaLienzo] = useState('');
@@ -124,10 +121,8 @@ export default function App() {
     }
   };
 
-  // --- FUNCIÓN PARA GUARDAR MEMORIA ANTES DE CADA CAMBIO ---
   const guardarEnHistorial = () => {
     setHistorial(prev => {
-      // Guardamos una foto exacta y profunda de los datos actuales
       const fotoActual = {
         auditorio: JSON.parse(JSON.stringify(auditorio)),
         comida: JSON.parse(JSON.stringify(comida)),
@@ -135,19 +130,14 @@ export default function App() {
         ordenMesas: [...ordenMesas]
       };
       const nuevoHistorial = [...prev, fotoActual];
-      // Limitamos a los últimos 20 movimientos para no gastar memoria
       if (nuevoHistorial.length > 20) nuevoHistorial.shift();
       return nuevoHistorial;
     });
   };
 
-  // --- FUNCIÓN PARA DESHACER (UNDO) ---
   const deshacerUltimaAccion = () => {
     if (historial.length === 0) return;
-    
-    // Obtenemos el último estado guardado
     const estadoAnterior = historial[historial.length - 1];
-    // Quitamos esa foto del historial porque ya la estamos usando
     const nuevoHistorial = historial.slice(0, -1);
     
     setHistorial(nuevoHistorial);
@@ -156,13 +146,25 @@ export default function App() {
     setNombresMesas(estadoAnterior.nombresMesas);
     setOrdenMesas(estadoAnterior.ordenMesas);
     
-    // Lo subimos a la nube para que el "Deshacer" aplique para todos
     syncToCloud(estadoAnterior.auditorio, estadoAnterior.comida, estadoAnterior.nombresMesas, estadoAnterior.ordenMesas);
+  };
+
+  // --- OBTENER INVITADOS ÚNICOS (HERRAMIENTA PARA DIRECTORIO) ---
+  const obtenerTodosLosInvitados = () => {
+    const mapa = new Map();
+    const extraer = (layout) => {
+      Object.values(layout).forEach(lista => {
+        lista.forEach(inv => { mapa.set(inv.id, inv); });
+      });
+    };
+    extraer(auditorio);
+    extraer(comida);
+    return Array.from(mapa.values());
   };
 
   // --- 3. LÓGICAS DE BLOQUEO, ELIMINACIÓN Y EDICIÓN ---
   const toggleBloqueoBanca = (id) => {
-    guardarEnHistorial(); // Guardar foto antes de modificar
+    guardarEnHistorial(); 
     const propBloqueo = vistaActual === 'auditorio' ? 'bloqueado_auditorio' : 'bloqueado_comida';
     
     const nuevoAuditorio = { ...auditorio };
@@ -183,7 +185,7 @@ export default function App() {
 
   const eliminarInvitadoDeBanca = (id) => {
     if (!window.confirm("¿Seguro que deseas eliminar a este invitado de todo el evento?")) return;
-    guardarEnHistorial(); // Guardar foto antes de modificar
+    guardarEnHistorial(); 
 
     const purgarLayout = (layout) => {
       const nuevoLayout = { ...layout };
@@ -202,7 +204,7 @@ export default function App() {
   };
 
   const guardarEdicion = (invitadoActualizado) => {
-    guardarEnHistorial(); // Guardar foto antes de modificar
+    guardarEnHistorial(); 
     const actualizarLayout = (layout) => {
       const nuevoLayout = { ...layout };
       Object.keys(nuevoLayout).forEach(key => {
@@ -239,7 +241,7 @@ export default function App() {
       try {
         const parseado = JSON.parse(evt.target.result);
         if(parseado.auditorio && parseado.comida) {
-          guardarEnHistorial(); // Respaldar antes de sobreescribir masivamente
+          guardarEnHistorial(); 
           const auditorioSeguro = { ...initAuditorio(), ...parseado.auditorio };
           const comidaSegura = { ...initComida(), ...parseado.comida };
           const nombresSeguros = { ...nombresMesas, ...(parseado.nombresMesas || {}) };
@@ -255,59 +257,55 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  // --- 5. EXPORTACIÓN A EXCEL ---
+  // --- 5. EXPORTACIÓN A EXCEL MÁSTER ---
   const exportarExcel = () => {
+    const wb = XLSX.utils.book_new();
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
+
+    // HOJA 1: EL DIRECTORIO MAESTRO PARA CORRECCIONES
+    const directorio = obtenerTodosLosInvitados().map(inv => ({
+      'ID_NO_TOCAR': inv.id,
+      'Dependencia': inv.dependencia,
+      'Nombre': inv.nombre,
+      'Cargo': inv.cargo
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(directorio), "1. Directorio Editable");
+
+    // HOJA 2: LISTA AUDITORIO
     const datosAuditorio = [];
-    
-    // 1. Estrado (1 al 8)
     for (let i = 1; i <= 8; i++) {
       const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
-      if (ocupante) {
-        datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': ocupante.dependencia || '', 'Nombre': ocupante.nombre || '', 'Cargo': ocupante.cargo || '' });
-      } else {
-        datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': '', 'Nombre': '[ Vacío ]', 'Cargo': '' });
-      }
+      datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '' });
     }
-    
-    // 2. Filas (1 al 16)
     for (let f = 1; f <= 16; f++) {
       for (let s = 1; s <= 13; s++) {
         if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) continue;
         if (f >= 7 && f <= 16 && s === 7) continue;
-
         const ocupante = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
-        if (ocupante) {
-          datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': ocupante.dependencia || '', 'Nombre': ocupante.nombre || '', 'Cargo': ocupante.cargo || '' });
-        } else {
-          datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': '', 'Nombre': '[ Vacío ]', 'Cargo': '' });
-        }
+        datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '' });
       }
     }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosAuditorio), "2. Lista Auditorio");
 
+    // HOJA 3: LISTA COMIDA
     const datosComida = [];
     ordenMesas.forEach(m => {
       for(let s=1; s<=10; s++) {
-        const ocupantes = comida[`mesa_${m}_silla_${s}`] || [];
-        const ocupante = ocupantes[0];
-        if (ocupante) {
-            datosComida.push({ 'Mesa': nombresMesas[`mesa_${m}`], 'Asiento': `Silla ${s}`, 'Dependencia': ocupante.dependencia || '', 'Nombre': ocupante.nombre || '', 'Cargo': ocupante.cargo || '' });
-        } else {
-            datosComida.push({ 'Mesa': nombresMesas[`mesa_${m}`], 'Asiento': `Silla ${s}`, 'Dependencia': '', 'Nombre': '[ Vacío ]', 'Cargo': '' });
-        }
+        const ocupante = (comida[`mesa_${m}_silla_${s}`] || [])[0];
+        datosComida.push({ 'Mesa': nombresMesas[`mesa_${m}`], 'Asiento': `Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '' });
       }
     });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosComida), "3. Lista Comida");
 
+    // HOJA 4: GRÁFICO AUDITORIO
     const matrizAuditorio = [];
     matrizAuditorio.push([{ v: "ESTRADO (Presidium)", s: { font: { bold: true } } }]);
     const filaEstrado = [];
     for(let i=1; i<=8; i++) {
-        const sillaInfo = auditorio[`estrado_silla_${i}`] || [];
-        const oc = sillaInfo[0];
+        const oc = (auditorio[`estrado_silla_${i}`] || [])[0];
         filaEstrado.push(oc ? { v: `${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
     }
     matrizAuditorio.push(filaEstrado); matrizAuditorio.push([]); 
-    
     for(let f=1; f <= 16; f++) {
         matrizAuditorio.push([{ v: `FILA ${f}`, s: { font: { bold: true } } }]);
         const filaAsientos = [];
@@ -325,13 +323,15 @@ export default function App() {
         if (f === 6) { matrizAuditorio.push([]); matrizAuditorio.push(["", "", "", "", "", { v: "============= P A S I L L O =============", t: 's', s: { font: { bold: true, color: { rgb: "475569" } }, alignment: { horizontal: 'center' } } }]); }
         matrizAuditorio.push([]); 
     }
+    const ws3 = XLSX.utils.aoa_to_sheet(matrizAuditorio); ws3['!cols'] = Array(16).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws3, "4. Gráfico Auditorio");
 
+    // HOJA 5: GRÁFICO COMIDA
     const matrizComida = [];
     ordenMesas.forEach((m) => {
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
         for(let fila=0; fila<5; fila++) {
-            const s1 = (fila * 2) + 1; const s2 = (fila * 2) + 2;
-            const o1 = (comida[`mesa_${m}_silla_${s1}`] || [])[0]; const o2 = (comida[`mesa_${m}_silla_${s2}`] || [])[0];
+            const o1 = (comida[`mesa_${m}_silla_${(fila * 2) + 1}`] || [])[0]; 
+            const o2 = (comida[`mesa_${m}_silla_${(fila * 2) + 2}`] || [])[0];
             matrizComida.push([
               o1 ? { v: `${o1.nombre}\n${o1.cargo}`, t: 's', s: getExcelStyle(o1.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }, 
               o2 ? { v: `${o2.nombre}\n${o2.cargo}`, t: 's', s: getExcelStyle(o2.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }
@@ -339,16 +339,12 @@ export default function App() {
         }
         matrizComida.push([]);
     });
+    const ws4 = XLSX.utils.aoa_to_sheet(matrizComida); ws4['!cols'] = Array(6).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws4, "5. Gráfico Comida");
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosAuditorio), "Lista Auditorio");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosComida), "Lista Comida");
-    const ws3 = XLSX.utils.aoa_to_sheet(matrizAuditorio); ws3['!cols'] = Array(16).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws3, "Gráfico Auditorio");
-    const ws4 = XLSX.utils.aoa_to_sheet(matrizComida); ws4['!cols'] = Array(6).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws4, "Gráfico Comida");
     XLSX.writeFile(wb, "Sembrado_Invitados_Completo.xlsx");
   };
 
-  // --- 6. CARGAR EXCEL (LISTA INICIAL) ---
+  // --- 6. CARGAR EXCEL (NUEVOS INVITADOS) ---
   const cargarExcel = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -359,7 +355,7 @@ export default function App() {
         const workbook = XLSX.read(data, { type: 'array' });
         const filasExcel = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-        guardarEnHistorial(); // Guardar foto antes de cargar masivamente
+        guardarEnHistorial(); 
         
         const nuevosInvitados = filasExcel.map((fila, index) => {
           const filaNormalizada = {};
@@ -372,8 +368,69 @@ export default function App() {
         
         setAuditorio(nuevoAuditorio); setComida(nuevaComida);
         syncToCloud(nuevoAuditorio, nuevaComida, null, null);
-        alert(`✅ Se cargaron y sincronizaron ${nuevosInvitados.length} invitados.`); e.target.value = null; 
+        alert(`✅ Se añadieron ${nuevosInvitados.length} invitados a la banca.`); e.target.value = null; 
       } catch (error) { alert("❌ Error al leer el Excel. Revisa el formato."); }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // --- 6.5 ACTUALIZADOR MASIVO DE TEXTOS (EXCEL) ---
+  const actualizarDesdeExcel = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        const sheetName = workbook.SheetNames.find(n => n.includes('Directorio')) || workbook.SheetNames[0];
+        const filasExcel = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+        const actualizaciones = {};
+        filasExcel.forEach(fila => {
+          const filaNorm = {};
+          Object.keys(fila).forEach(k => { filaNorm[k.toUpperCase().trim()] = fila[k]; });
+          
+          if (filaNorm['ID_NO_TOCAR']) {
+            actualizaciones[filaNorm['ID_NO_TOCAR']] = {
+              nombre: filaNorm['NOMBRE'] || '',
+              cargo: filaNorm['CARGO'] || '',
+              dependencia: filaNorm['DEPENDENCIA'] || ''
+            };
+          }
+        });
+
+        if (Object.keys(actualizaciones).length === 0) {
+           alert("❌ No se encontró la columna 'ID_NO_TOCAR'. Asegúrate de usar la hoja '1. Directorio Editable'.");
+           return;
+        }
+
+        guardarEnHistorial();
+
+        const aplicarActualizaciones = (layout) => {
+          const nuevoLayout = { ...layout };
+          Object.keys(nuevoLayout).forEach(key => {
+            nuevoLayout[key] = nuevoLayout[key].map(inv => {
+              if (actualizaciones[inv.id]) {
+                return { ...inv, ...actualizaciones[inv.id] };
+              }
+              return inv;
+            });
+          });
+          return nuevoLayout;
+        };
+
+        const nuevoAuditorio = aplicarActualizaciones(auditorio);
+        const nuevaComida = aplicarActualizaciones(comida);
+
+        setAuditorio(nuevoAuditorio); setComida(nuevaComida);
+        syncToCloud(nuevoAuditorio, nuevaComida, null, null);
+        alert(`✅ ¡Textos actualizados! Se revisaron y corrigieron ${Object.keys(actualizaciones).length} registros sin perder sus lugares.`);
+      } catch (error) {
+        alert("❌ Error procesando las correcciones. Asegúrate de que subiste el Excel correcto.");
+      }
+      e.target.value = null; 
     };
     reader.readAsArrayBuffer(file);
   };
@@ -429,13 +486,11 @@ export default function App() {
     const { source, destination, type } = result;
     if (!destination) return;
     
-    // Guardar foto de seguridad antes de cualquier movimiento exitoso
     guardarEnHistorial();
 
     if (type === 'mesa') {
       const srcRow = parseInt(source.droppableId.split('_')[1]);
       const destRow = parseInt(destination.droppableId.split('_')[1]);
-      
       const srcAbsIndex = (srcRow * 3) + source.index;
       const destAbsIndex = (destRow * 3) + destination.index;
 
@@ -443,8 +498,7 @@ export default function App() {
       const [mesaMovida] = nuevoOrden.splice(srcAbsIndex, 1);
       nuevoOrden.splice(destAbsIndex, 0, mesaMovida);
 
-      setOrdenMesas(nuevoOrden);
-      syncToCloud(null, null, null, nuevoOrden);
+      setOrdenMesas(nuevoOrden); syncToCloud(null, null, null, nuevoOrden);
       return;
     }
 
@@ -568,24 +622,29 @@ export default function App() {
           </h2>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px' }}>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <label style={{ flex: 1, backgroundColor: '#10b981', color: 'white', padding: '8px', textAlign: 'center', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                + Cargar Lista <input type="file" accept=".xlsx, .xls" onChange={cargarExcel} style={{ display: 'none' }} />
-              </label>
-              <button onClick={() => setVistaActual(vistaActual === 'auditorio' ? 'comida' : 'auditorio')} style={{ flex: 1, backgroundColor: '#3b82f6', color: 'white', padding: '8px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                Ver {vistaActual === 'auditorio' ? 'Comida' : 'Auditorio'}
-              </button>
-            </div>
-            <hr style={{ borderTop: '1px solid #e2e8f0', margin: '5px 0' }} />
             
+            <button onClick={() => setVistaActual(vistaActual === 'auditorio' ? 'comida' : 'auditorio')} style={{ width: '100%', backgroundColor: '#3b82f6', color: 'white', padding: '8px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+              👁️ Cambiar a Vista {vistaActual === 'auditorio' ? 'Comida' : 'Auditorio'}
+            </button>
+            <hr style={{ borderTop: '1px solid #e2e8f0', margin: '5px 0' }} />
+
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={descargarRespaldo} style={{ flex: 1, backgroundColor: '#6366f1', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>💾 Descargar (JSON)</button>
-              <label style={{ flex: 1, backgroundColor: '#f59e0b', color: 'white', padding: '10px', textAlign: 'center', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                📂 Subir (JSON) <input type="file" accept=".json" onChange={cargarRespaldo} style={{ display: 'none' }} />
+              <label style={{ flex: 1, backgroundColor: '#10b981', color: 'white', padding: '8px', textAlign: 'center', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                + Subir Nuevos <input type="file" accept=".xlsx, .xls" onChange={cargarExcel} style={{ display: 'none' }} />
+              </label>
+              <label style={{ flex: 1, backgroundColor: '#0ea5e9', color: 'white', padding: '8px', textAlign: 'center', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }} title="Sube el Excel con los textos corregidos en la hoja 'Directorio'">
+                🔄 Corregir Textos <input type="file" accept=".xlsx, .xls" onChange={actualizarDesdeExcel} style={{ display: 'none' }} />
+              </label>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '8px', marginTop: '5px' }}>
+              <button onClick={descargarRespaldo} style={{ flex: 1, backgroundColor: '#6366f1', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>💾 Descargar (JSON)</button>
+              <label style={{ flex: 1, backgroundColor: '#f59e0b', color: 'white', padding: '10px', textAlign: 'center', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                📂 Restaurar (JSON) <input type="file" accept=".json" onChange={cargarRespaldo} style={{ display: 'none' }} />
               </label>
             </div>
 
-            <button onClick={exportarExcel} style={{ backgroundColor: '#16a34a', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>📊 Exportar a Excel (4 Hojas)</button>
+            <button onClick={exportarExcel} style={{ backgroundColor: '#16a34a', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', marginTop: '5px' }}>📊 Exportar a Excel (5 Hojas)</button>
             <button onClick={exportarPDF} style={{ backgroundColor: '#ef4444', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>📄 Exportar Plano PDF</button>
           </div>
 
@@ -610,19 +669,15 @@ export default function App() {
         {/* LIENZO PRINCIPAL */}
         <div style={{ flexGrow: 1, overflow: 'auto', padding: '20px', backgroundColor: '#e2e8f0', position: 'relative' }}>
           
-          {/* BARRA SUPERIOR FLOTANTE (BUSCADOR, ZOOM Y BOTÓN DESHACER) */}
           <div style={{ position: 'fixed', top: '20px', right: '30px', zIndex: 50, display: 'flex', gap: '15px', alignItems: 'center' }}>
-            
-            {/* NUEVO BOTON DESHACER */}
             <button 
               onClick={deshacerUltimaAccion} 
               disabled={historial.length === 0} 
               title={historial.length === 0 ? "Nada que deshacer" : "Deshacer último movimiento"}
-              style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: historial.length === 0 ? '#e2e8f0' : '#f43f5e', color: historial.length === 0 ? '#94a3b8' : 'white', fontWeight: 'bold', cursor: historial.length === 0 ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
+              style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: historial.length === 0 ? '#cbd5e1' : '#f43f5e', color: historial.length === 0 ? '#64748b' : 'white', fontWeight: 'bold', cursor: historial.length === 0 ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
             >
               ↩️ Deshacer
             </button>
-
             <input type="text" placeholder="🔍 Buscar en sembrado..." value={busquedaLienzo} onChange={(e) => setBusquedaLienzo(e.target.value)} style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', width: '250px' }} />
             <div style={{ display: 'flex', gap: '5px', backgroundColor: 'white', padding: '5px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
               <button onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))} style={{ padding: '5px 12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', border: '1px solid #cbd5e1', borderRadius: '4px', backgroundColor: '#f8fafc' }}>-</button>
