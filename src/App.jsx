@@ -85,7 +85,8 @@ export default function App() {
   
   const [ordenMesas, setOrdenMesas] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   const [historial, setHistorial] = useState([]);
-  const [modoEdicion, setModoEdicion] = useState(false); // NUEVO ESTADO LECTURA/EDICIÓN
+  const [modoEdicion, setModoEdicion] = useState(false); 
+  const [mostrarMenuDescarga, setMostrarMenuDescarga] = useState(false); // NUEVO ESTADO PARA EL MENÚ
   const [zoom, setZoom] = useState(1); 
   const [busquedaBanca, setBusquedaBanca] = useState('');
   const [busquedaLienzo, setBusquedaLienzo] = useState('');
@@ -486,7 +487,7 @@ export default function App() {
 
   // --- 8. ARRASTRAR Y SOLTAR MÁSTER ---
   const onDragEnd = (result) => {
-    if(!modoEdicion) return; // Si no hay edición, ignoramos la acción
+    if(!modoEdicion) return; 
 
     const { source, destination, type } = result;
     if (!destination) return;
@@ -677,16 +678,36 @@ export default function App() {
         {/* LIENZO PRINCIPAL */}
         <div style={{ flexGrow: 1, overflow: 'auto', padding: '20px', backgroundColor: '#e2e8f0', position: 'relative' }}>
           
-          {/* BARRA SUPERIOR FLOTANTE MAESTRA */}
-          <div style={{ position: 'fixed', top: '20px', right: '30px', zIndex: 50, display: 'flex', gap: '15px', alignItems: 'center' }}>
-            
-            {/* BOTÓN CAMBIAR VISTA */}
+          {/* BARRA SUPERIOR FLOTANTE IZQUIERDA (BOTÓN VISTAS) */}
+          <div style={{ position: 'fixed', top: '20px', left: modoEdicion ? '350px' : '30px', zIndex: 50, transition: 'left 0.2s' }}>
             <button 
               onClick={() => setVistaActual(vistaActual === 'auditorio' ? 'comida' : 'auditorio')}
               style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: '#3b82f6', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
             >
               👁️ Ver {vistaActual === 'auditorio' ? 'Comida' : 'Auditorio'}
             </button>
+          </div>
+
+          {/* BARRA SUPERIOR FLOTANTE DERECHA MAESTRA */}
+          <div style={{ position: 'fixed', top: '20px', right: '30px', zIndex: 50, display: 'flex', gap: '15px', alignItems: 'center' }}>
+            
+            {/* BOTÓN DESPLEGABLE DESCARGAR (SOLO LECTURA) */}
+            {!modoEdicion && (
+              <div style={{ position: 'relative' }}>
+                <button 
+                  onClick={() => setMostrarMenuDescarga(!mostrarMenuDescarga)} 
+                  style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: '#6366f1', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}
+                >
+                  📥 Descargar ▼
+                </button>
+                {mostrarMenuDescarga && (
+                  <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '220px', zIndex: 100 }}>
+                    <button onClick={() => { exportarExcel(); setMostrarMenuDescarga(false); }} style={{ padding: '12px 15px', border: 'none', backgroundColor: 'transparent', textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 'bold', color: '#16a34a' }}>📊 Exportar a Excel (5 Hojas)</button>
+                    <button onClick={() => { exportarPDF(); setMostrarMenuDescarga(false); }} style={{ padding: '12px 15px', border: 'none', backgroundColor: 'transparent', textAlign: 'left', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', color: '#ef4444' }}>📄 Exportar Plano PDF</button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* BOTÓN ACTIVAR/DESACTIVAR EDICIÓN */}
             <button 
