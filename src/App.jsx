@@ -85,7 +85,7 @@ export default function App() {
   
   const [ordenMesas, setOrdenMesas] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   const [historial, setHistorial] = useState([]);
-  const [modoPresentacion, setModoPresentacion] = useState(false); // NUEVO ESTADO
+  const [modoEdicion, setModoEdicion] = useState(false); // NUEVO ESTADO LECTURA/EDICIÓN
   const [zoom, setZoom] = useState(1); 
   const [busquedaBanca, setBusquedaBanca] = useState('');
   const [busquedaLienzo, setBusquedaLienzo] = useState('');
@@ -164,6 +164,7 @@ export default function App() {
 
   // --- 3. LÓGICAS DE BLOQUEO, ELIMINACIÓN Y EDICIÓN ---
   const toggleBloqueoBanca = (id) => {
+    if(!modoEdicion) return;
     guardarEnHistorial(); 
     const propBloqueo = vistaActual === 'auditorio' ? 'bloqueado_auditorio' : 'bloqueado_comida';
     
@@ -184,6 +185,7 @@ export default function App() {
   };
 
   const eliminarInvitadoDeBanca = (id) => {
+    if(!modoEdicion) return;
     if (!window.confirm("¿Seguro que deseas eliminar a este invitado de todo el evento?")) return;
     guardarEnHistorial(); 
 
@@ -220,7 +222,10 @@ export default function App() {
     setInvitadoEditando(null); 
   };
 
-  const manejarEdicionNombreMesa = (m, valor) => setNombresMesas(prev => ({...prev, [`mesa_${m}`]: valor}));
+  const manejarEdicionNombreMesa = (m, valor) => {
+    if(!modoEdicion) return;
+    setNombresMesas(prev => ({...prev, [`mesa_${m}`]: valor}));
+  }
   const manejarBlurNombreMesa = () => syncToCloud(null, null, nombresMesas, null);
 
   // --- 4. RESPALDOS LOCALES (JSON) ---
@@ -262,7 +267,6 @@ export default function App() {
     const wb = XLSX.utils.book_new();
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 
-    // HOJA 1: EL DIRECTORIO MAESTRO
     const directorio = obtenerTodosLosInvitados().map(inv => ({
       'ID_NO_TOCAR': inv.id,
       'Dependencia': inv.dependencia,
@@ -271,7 +275,6 @@ export default function App() {
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(directorio), "1. Directorio Editable");
 
-    // HOJA 2: LISTA AUDITORIO
     const datosAuditorio = [];
     for (let i = 1; i <= 8; i++) {
       const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
@@ -287,7 +290,6 @@ export default function App() {
     }
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosAuditorio), "2. Lista Auditorio");
 
-    // HOJA 3: LISTA COMIDA
     const datosComida = [];
     ordenMesas.forEach(m => {
       for(let s=1; s<=10; s++) {
@@ -297,7 +299,6 @@ export default function App() {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosComida), "3. Lista Comida");
 
-    // HOJA 4: GRÁFICO AUDITORIO
     const matrizAuditorio = [];
     matrizAuditorio.push([{ v: "ESTRADO (Presidium)", s: { font: { bold: true } } }]);
     const filaEstrado = [];
@@ -328,7 +329,6 @@ export default function App() {
     }
     const ws3 = XLSX.utils.aoa_to_sheet(matrizAuditorio); ws3['!cols'] = Array(16).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws3, "4. Gráfico Auditorio");
 
-    // HOJA 5: GRÁFICO COMIDA
     const matrizComida = [];
     ordenMesas.forEach((m) => {
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
@@ -377,7 +377,7 @@ export default function App() {
     reader.readAsArrayBuffer(file);
   };
 
-  // --- 6.5 ACTUALIZADOR MASIVO DE TEXTOS (EXCEL) ---
+  // --- 6.5 ACTUALIZADOR MASIVO DE TEXTOS ---
   const actualizarDesdeExcel = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -486,6 +486,8 @@ export default function App() {
 
   // --- 8. ARRASTRAR Y SOLTAR MÁSTER ---
   const onDragEnd = (result) => {
+    if(!modoEdicion) return; // Si no hay edición, ignoramos la acción
+
     const { source, destination, type } = result;
     if (!destination) return;
     
@@ -563,24 +565,33 @@ export default function App() {
   }
 
   const renderMesaLayout = (m, indexWithinRow) => (
-    <Draggable key={`mesa_draggable_${m}`} draggableId={`mesa_draggable_${m}`} index={indexWithinRow}>
+    <Draggable key={`mesa_draggable_${m}`} draggableId={`mesa_draggable_${m}`} index={indexWithinRow} isDragDisabled={!modoEdicion}>
       {(provided, snapshot) => (
         <div 
           ref={provided.innerRef} 
           {...provided.draggableProps} 
           style={{ ...provided.draggableProps.style, width: '320px', backgroundColor: paletaMesas[m - 1].bg, border: `3px solid ${paletaMesas[m - 1].border}`, borderRadius: '8px', padding: '15px 20px 20px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: snapshot.isDragging ? '0 15px 25px rgba(0,0,0,0.3)' : '0 4px 6px -1px rgba(0,0,0,0.1)', flexShrink: 0, opacity: snapshot.isDragging ? 0.9 : 1 }}
         >
-          <div {...provided.dragHandleProps} title="Arrastrar mesa para reordenarla" style={{ width: '100%', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: snapshot.isDragging ? 'grabbing' : 'grab', marginBottom: '8px', color: paletaMesas[m - 1].border, opacity: 0.6 }}>
-            <span style={{ fontSize: '18px', lineHeight: '0' }}>⣿</span>
-          </div>
+          {modoEdicion && (
+            <div {...provided.dragHandleProps} title="Arrastrar mesa para reordenarla" style={{ width: '100%', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: snapshot.isDragging ? 'grabbing' : 'grab', marginBottom: '8px', color: paletaMesas[m - 1].border, opacity: 0.6 }}>
+              <span style={{ fontSize: '18px', lineHeight: '0' }}>⣿</span>
+            </div>
+          )}
 
           <div style={{ width: '100%', marginBottom: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <input type="text" value={nombresMesas[`mesa_${m}`] || ''} onChange={(e) => manejarEdicionNombreMesa(m, e.target.value)} onBlur={manejarBlurNombreMesa} style={{ width: '100%', height: '40px', lineHeight: '36px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '0 10px', borderRadius: '4px', border: '1px solid white', backgroundColor: 'rgba(255,255,255,0.7)', outline: 'none', boxSizing: 'border-box', fontFamily: 'sans-serif' }} />
+            <input 
+              type="text" 
+              readOnly={!modoEdicion}
+              value={nombresMesas[`mesa_${m}`] || ''} 
+              onChange={(e) => manejarEdicionNombreMesa(m, e.target.value)} 
+              onBlur={manejarBlurNombreMesa} 
+              style={{ width: '100%', height: '40px', lineHeight: '36px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '0 10px', borderRadius: '4px', border: modoEdicion ? '1px solid white' : 'none', backgroundColor: modoEdicion ? 'rgba(255,255,255,0.7)' : 'transparent', outline: 'none', boxSizing: 'border-box', fontFamily: 'sans-serif' }} 
+            />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '100%' }}>
             {Array.from({ length: 10 }, (_, s) => {
               const ocupante = layoutActivo[`mesa_${m}_silla_${s+1}`] || [];
-              return <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />
+              return <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} />
             })}
           </div>
         </div>
@@ -617,20 +628,14 @@ export default function App() {
       )}
 
       <DragDropContext onDragEnd={onDragEnd}>
-        {/* PANEL BANCA (OCULTABLE) */}
-        <div style={{ width: '320px', flexShrink: 0, backgroundColor: 'white', padding: '15px', borderRight: '1px solid #cbd5e1', display: modoPresentacion ? 'none' : 'flex', flexDirection: 'column', zIndex: 10 }}>
+        {/* PANEL BANCA (SOLO VISIBLE EN MODO EDICIÓN) */}
+        <div style={{ width: '320px', flexShrink: 0, backgroundColor: 'white', padding: '15px', borderRight: '1px solid #cbd5e1', display: modoEdicion ? 'flex' : 'none', flexDirection: 'column', zIndex: 10 }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            Panel de Control
-            <span style={{ fontSize: '10px', backgroundColor: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '12px' }}>🟢 Sincronizado</span>
+            Panel de Edición
+            <span style={{ fontSize: '10px', backgroundColor: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '12px' }}>🟢 Abierto</span>
           </h2>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px' }}>
-            
-            <button onClick={() => setVistaActual(vistaActual === 'auditorio' ? 'comida' : 'auditorio')} style={{ width: '100%', backgroundColor: '#3b82f6', color: 'white', padding: '8px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-              👁️ Cambiar a Vista {vistaActual === 'auditorio' ? 'Comida' : 'Auditorio'}
-            </button>
-            <hr style={{ borderTop: '1px solid #e2e8f0', margin: '5px 0' }} />
-
             <div style={{ display: 'flex', gap: '8px' }}>
               <label style={{ flex: 1, backgroundColor: '#10b981', color: 'white', padding: '8px', textAlign: 'center', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 + Subir Nuevos <input type="file" accept=".xlsx, .xls" onChange={cargarExcel} style={{ display: 'none' }} />
@@ -656,12 +661,12 @@ export default function App() {
              <input type="text" placeholder="🔍 Buscar..." value={busquedaBanca} onChange={(e) => setBusquedaBanca(e.target.value)} style={{ width: '130px', padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none' }} />
           </div>
           
-          <Droppable droppableId="banca" type="invitado">
+          <Droppable droppableId="banca" type="invitado" isDropDisabled={!modoEdicion}>
             {(provided) => (
               <div {...provided.droppableProps} ref={provided.innerRef} style={{ flexGrow: 1, overflowY: 'auto', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '4px', minHeight: '100px' }}>
                 {(layoutActivo.banca || []).map((invitado, index) => {
                   const isBloqueado = vistaActual === 'auditorio' ? invitado.bloqueado_auditorio : invitado.bloqueado_comida;
-                  return <Tarjeta key={invitado.id} invitado={invitado} index={index} isBanca={true} isBloqueado={isBloqueado} onToggleLock={toggleBloqueoBanca} onDelete={eliminarInvitadoDeBanca} busqueda={busquedaBanca} onEdit={setInvitadoEditando} />
+                  return <Tarjeta key={invitado.id} invitado={invitado} index={index} isBanca={true} isBloqueado={isBloqueado} onToggleLock={toggleBloqueoBanca} onDelete={eliminarInvitadoDeBanca} busqueda={busquedaBanca} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} />
                 })}
                 {provided.placeholder}
               </div>
@@ -672,26 +677,39 @@ export default function App() {
         {/* LIENZO PRINCIPAL */}
         <div style={{ flexGrow: 1, overflow: 'auto', padding: '20px', backgroundColor: '#e2e8f0', position: 'relative' }}>
           
+          {/* BARRA SUPERIOR FLOTANTE MAESTRA */}
           <div style={{ position: 'fixed', top: '20px', right: '30px', zIndex: 50, display: 'flex', gap: '15px', alignItems: 'center' }}>
             
-            {/* BOTÓN PANTALLA COMPLETA */}
+            {/* BOTÓN CAMBIAR VISTA */}
             <button 
-              onClick={() => setModoPresentacion(!modoPresentacion)}
-              title="Ocultar o Mostrar el Panel de Control Lateral"
-              style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: modoPresentacion ? '#f59e0b' : '#3b82f6', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
+              onClick={() => setVistaActual(vistaActual === 'auditorio' ? 'comida' : 'auditorio')}
+              style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: '#3b82f6', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
             >
-              {modoPresentacion ? '🗗 Salir Pantalla Completa' : '🖥️ Pantalla Completa'}
+              👁️ Ver {vistaActual === 'auditorio' ? 'Comida' : 'Auditorio'}
             </button>
 
+            {/* BOTÓN ACTIVAR/DESACTIVAR EDICIÓN */}
             <button 
-              onClick={deshacerUltimaAccion} 
-              disabled={historial.length === 0} 
-              title={historial.length === 0 ? "Nada que deshacer" : "Deshacer último movimiento"}
-              style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: historial.length === 0 ? '#cbd5e1' : '#f43f5e', color: historial.length === 0 ? '#64748b' : 'white', fontWeight: 'bold', cursor: historial.length === 0 ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
+              onClick={() => setModoEdicion(!modoEdicion)}
+              title={modoEdicion ? "Bloquear sembrado y ocultar panel" : "Habilitar panel de control y arrastre"}
+              style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: modoEdicion ? '#f59e0b' : '#10b981', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
             >
-              ↩️ Deshacer
+              {modoEdicion ? '🔒 Cerrar Edición' : '✏️ Editar'}
             </button>
+
+            {modoEdicion && (
+              <button 
+                onClick={deshacerUltimaAccion} 
+                disabled={historial.length === 0} 
+                title={historial.length === 0 ? "Nada que deshacer" : "Deshacer último movimiento"}
+                style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: historial.length === 0 ? '#cbd5e1' : '#f43f5e', color: historial.length === 0 ? '#64748b' : 'white', fontWeight: 'bold', cursor: historial.length === 0 ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
+              >
+                ↩️ Deshacer
+              </button>
+            )}
+
             <input type="text" placeholder="🔍 Buscar en sembrado..." value={busquedaLienzo} onChange={(e) => setBusquedaLienzo(e.target.value)} style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', width: '250px' }} />
+            
             <div style={{ display: 'flex', gap: '5px', backgroundColor: 'white', padding: '5px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
               <button onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))} style={{ padding: '5px 12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', border: '1px solid #cbd5e1', borderRadius: '4px', backgroundColor: '#f8fafc' }}>-</button>
               <div style={{ padding: '5px 10px', fontWeight: 'bold', minWidth: '60px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</div>
@@ -724,7 +742,7 @@ export default function App() {
                     <div style={{ backgroundColor: '#1e293b', padding: '20px 40px', borderRadius: '8px', border: '2px solid #0f172a', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
                       <h3 style={{ color: 'white', textAlign: 'center', marginBottom: '20px', letterSpacing: '2px' }}>ESTRADO (Presidium)</h3>
                       <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-                        {Array.from({ length: 8 }, (_, i) => <Silla key={`estrado_silla_${i+1}`} id={`estrado_silla_${i+1}`} ocupante={layoutActivo[`estrado_silla_${i+1}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />)}
+                        {Array.from({ length: 8 }, (_, i) => <Silla key={`estrado_silla_${i+1}`} id={`estrado_silla_${i+1}`} ocupante={layoutActivo[`estrado_silla_${i+1}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} />)}
                       </div>
                     </div>
                     
@@ -753,7 +771,7 @@ export default function App() {
                                 if (f === 5 && (s === 7 || s === 8)) return null;
                                 if (f === 6 && s === 6) return <div key="tv_unam_spacer" style={{ width: '380px', height: '95px', flexShrink: 0 }} />;
                                 if (f === 6 && (s === 7 || s === 8)) return null;
-                                return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />
+                                return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} />
                               })}
                             </div>
                           </div>
@@ -765,7 +783,7 @@ export default function App() {
                   {/* PASILLO CENTRAL */}
                   <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '30px 0', height: '45px', backgroundColor: '#cbd5e1', borderRadius: '6px', border: '2px dashed #94a3b8' }}><span style={{ fontWeight: 'bold', letterSpacing: '12px', color: '#475569', fontSize: '16px' }}>P A S I L L O</span></div>
 
-                  {/* HOJA 2 (Ajustada para Filas 7 a 14) */}
+                  {/* HOJA 2 */}
                   <div id="auditorio-parte-2" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', alignItems: 'center', backgroundColor: 'white' }}>
                     
                     {/* ENCABEZADO ASIENTOS - HOJA 2 */}
@@ -789,7 +807,7 @@ export default function App() {
                             {Array.from({ length: 13 }, (_, sIndex) => {
                               const s = sIndex + 1;
                               if (s === 6 || s === 7 || s === 8) return <div key={`pasillo_${f}_${s}`} style={{ width: '120px', height: '95px', flexShrink: 0 }} />;
-                              return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} />
+                              return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} />
                             })}
                           </div>
                         </div>
@@ -806,7 +824,7 @@ export default function App() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', alignItems: 'center', minWidth: 'max-content', padding: '0 20px' }}>
                   
                   {bloquesMesas.map((bloque, indexFila) => (
-                    <Droppable key={`mesas_fila_${indexFila}`} droppableId={`mesas_${indexFila}`} direction="horizontal" type="mesa">
+                    <Droppable key={`mesas_fila_${indexFila}`} droppableId={`mesas_${indexFila}`} direction="horizontal" type="mesa" isDropDisabled={!modoEdicion}>
                       {(provided, snapshot) => (
                         <div 
                            id={`comida-parte-${indexFila + 1}`}
@@ -832,17 +850,17 @@ export default function App() {
 }
 
 // --- 9. COMPONENTES REFINADOS ---
-function Silla({ id, ocupante, vista, busqueda, onEdit }) {
+function Silla({ id, ocupante, vista, busqueda, onEdit, modoEdicion }) {
   const isAuditorio = vista === 'auditorio'; const width = isAuditorio ? '120px' : '100%'; const minWidth = isAuditorio ? '120px' : '85px'; const height = isAuditorio ? '95px' : '75px'; const flexShrink = isAuditorio ? 0 : 1; const arrOcupante = Array.isArray(ocupante) ? ocupante : [];
   const estaOcupada = arrOcupante.length >= 1;
 
   return (
-    <Droppable droppableId={id} type="invitado">
+    <Droppable droppableId={id} type="invitado" isDropDisabled={!modoEdicion}>
       {(provided, snapshot) => {
         let borderColor = estaOcupada ? '2px solid transparent' : '2px dashed #94a3b8';
         let bgColor = estaOcupada ? 'transparent' : 'rgba(255,255,255,0.5)';
         
-        if (snapshot.isDraggingOver) {
+        if (snapshot.isDraggingOver && modoEdicion) {
            borderColor = estaOcupada ? '2px dashed #f59e0b' : '2px dashed #3b82f6';
            bgColor = estaOcupada ? '#fef3c7' : '#eff6ff';
         }
@@ -852,7 +870,7 @@ function Silla({ id, ocupante, vista, busqueda, onEdit }) {
             {!estaOcupada && <span style={{ fontSize: '10px', color: snapshot.isDraggingOver ? '#3b82f6' : '#94a3b8', fontWeight: 'bold' }}>{id.includes('silla') ? id.split('_').pop() : 'Silla'}</span>}
             {arrOcupante.map((invitado, index) => {
               const isBloq = vista === 'auditorio' ? invitado.bloqueado_auditorio : invitado.bloqueado_comida;
-              return <Tarjeta key={invitado.id} invitado={invitado} index={index} enSilla={true} isBloqueado={isBloq} busqueda={busqueda} onEdit={onEdit} />
+              return <Tarjeta key={invitado.id} invitado={invitado} index={index} enSilla={true} isBloqueado={isBloq} busqueda={busqueda} onEdit={onEdit} modoEdicion={modoEdicion} />
             })}
             <div style={{ display: 'none' }}>{provided.placeholder}</div>
           </div>
@@ -862,7 +880,7 @@ function Silla({ id, ocupante, vista, busqueda, onEdit }) {
   );
 }
 
-function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock, onDelete, busqueda, onEdit }) {
+function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock, onDelete, busqueda, onEdit, modoEdicion }) {
   const colorBorde = getColorDependencia(invitado.dependencia); const textoBusqueda = busqueda ? busqueda.toLowerCase() : '';
   const coincideBusqueda = textoBusqueda !== '' && (invitado.nombre.toLowerCase().includes(textoBusqueda) || invitado.cargo.toLowerCase().includes(textoBusqueda) || invitado.dependencia.toLowerCase().includes(textoBusqueda));
   
@@ -872,11 +890,11 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
   const escala = coincideBusqueda ? 'scale(1.02)' : 'scale(1)';
 
   return (
-    <Draggable draggableId={invitado.id} index={index} isDragDisabled={isBanca && isBloqueado}>
+    <Draggable draggableId={invitado.id} index={index} isDragDisabled={!modoEdicion || (isBanca && isBloqueado)}>
       {(provided) => (
-        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} onDoubleClick={() => onEdit(invitado)} title="Doble clic para editar" style={{ userSelect: 'none', padding: '6px', backgroundColor: bgCard, border: '1px solid #cbd5e1', borderTop: `4px solid ${colorBorde}`, borderRadius: '4px', boxShadow: glow, transform: provided.draggableProps.style?.transform || escala, width: enSilla ? '100%' : '100%', height: enSilla ? '100%' : 'auto', marginBottom: enSilla ? '0' : '10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box', position: 'relative', transition: 'box-shadow 0.3s, opacity 0.3s', opacity, ...provided.draggableProps.style }}>
+        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} onDoubleClick={() => modoEdicion && onEdit(invitado)} title={modoEdicion ? "Doble clic para editar" : ""} style={{ userSelect: 'none', padding: '6px', backgroundColor: bgCard, border: '1px solid #cbd5e1', borderTop: `4px solid ${colorBorde}`, borderRadius: '4px', boxShadow: glow, transform: provided.draggableProps.style?.transform || escala, width: enSilla ? '100%' : '100%', height: enSilla ? '100%' : 'auto', marginBottom: enSilla ? '0' : '10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box', position: 'relative', transition: 'box-shadow 0.3s, opacity 0.3s', opacity, ...provided.draggableProps.style }}>
           
-          {isBanca && (
+          {isBanca && modoEdicion && (
             <>
               <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onToggleLock(invitado.id)} title={isBloqueado ? "Desbloquear" : "Bloquear (mandar al final de la lista)"} style={{ position: 'absolute', top: '-6px', left: '-6px', width: '18px', height: '18px', backgroundColor: isBloqueado ? '#8b5cf6' : '#94a3b8', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >{isBloqueado ? '🔓' : '🔒'}</button>
               <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDelete(invitado.id)} title="Eliminar del evento" style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >×</button>
