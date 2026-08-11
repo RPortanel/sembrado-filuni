@@ -11,7 +11,6 @@ const initAuditorio = () => {
   const layout = { banca: [] };
   for (let i = 1; i <= 8; i++) layout[`estrado_silla_${i}`] = [];
   
-  // FILAS REDUCIDAS A 14
   for (let f = 1; f <= 14; f++) {
     for (let s = 1; s <= 13; s++) {
       // Filas 7 y 8, asientos 6, 7 y 8 son para TV UNAM
@@ -35,13 +34,17 @@ const initComida = () => {
 const getColorDependencia = (dependencia) => {
   if (!dependencia) return '#cbd5e1'; 
   const depNormalizada = String(dependencia).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  
   if (depNormalizada === 'unam') return '#1e3a8a'; 
   if (depNormalizada === 'unam cdc') return '#3b82f6'; 
   if (depNormalizada === 'uv') return '#f97316'; 
   if (depNormalizada === 'externo' || depNormalizada === 'ext') return '#22c55e'; 
   if (depNormalizada === 'invitado especial') return '#84cc16'; 
   if (depNormalizada === 'dgpyfe') return '#facc15'; 
-  if (depNormalizada.includes('rector')) return '#9333ea';
+  // OJO: Staff del Rector va ANTES que la regla general de rector
+  if (depNormalizada === 'staff del rector' || depNormalizada === 'staff rector') return '#000000'; // Franja Negra
+  if (depNormalizada.includes('rector')) return '#9333ea'; // Franja Morada
+  
   return '#cbd5e1'; 
 };
 
@@ -50,13 +53,16 @@ const getExcelStyle = (dependencia) => {
   if (!dependencia) return { ...baseStyle, fill: { patternType: 'solid', fgColor: { rgb: 'CBD5E1' } }, font: { color: { rgb: '000000' } } }; 
   const depNormalizada = String(dependencia).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   let bg = 'CBD5E1'; let text = '000000'; 
+  
   if (depNormalizada === 'unam') { bg = '1E3A8A'; text = 'FFFFFF'; } 
   else if (depNormalizada === 'unam cdc') { bg = '3B82F6'; text = 'FFFFFF'; }
   else if (depNormalizada === 'uv') { bg = 'F97316'; text = 'FFFFFF'; }
   else if (depNormalizada === 'externo' || depNormalizada === 'ext') { bg = '22C55E'; text = 'FFFFFF'; }
   else if (depNormalizada === 'invitado especial') { bg = '84CC16'; text = '000000'; }
   else if (depNormalizada === 'dgpyfe') { bg = 'FACC15'; text = '000000'; }
+  else if (depNormalizada === 'staff del rector' || depNormalizada === 'staff rector') { bg = 'CBD5E1'; text = '000000'; } // Fondo gris claro, texto negro para no oscurecer la celda
   else if (depNormalizada.includes('rector')) { bg = '9333EA'; text = 'FFFFFF'; }
+  
   return { fill: { patternType: 'solid', fgColor: { rgb: bg } }, font: { color: { rgb: text }, bold: true }, alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 };
 
@@ -198,7 +204,7 @@ export default function App() {
   const getSecuenciaAuditorio = () => {
     const seq = [];
     for (let i = 1; i <= 8; i++) seq.push(`estrado_silla_${i}`);
-    for (let f = 1; f <= 14; f++) { // Reducido a 14
+    for (let f = 1; f <= 14; f++) {
       for (let s = 1; s <= 13; s++) {
         if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) continue;
         if (f >= 9 && f <= 14 && (s >= 6 && s <= 8)) continue; 
@@ -397,7 +403,7 @@ export default function App() {
         const nuevaComida = { ...comida, banca: [...comida.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_comida === b.bloqueado_comida ? 0 : a.bloqueado_comida ? 1 : -1)) };
         setAuditorio(nuevoAuditorio); setComida(nuevaComida);
         syncToCloud(nuevoAuditorio, nuevaComida, null, null);
-        alert(`✅ Se añadieron ${nuevosInvitados.length} invitados.`); e.target.value = null; 
+        alert(`✅ Se añadieron ${nuevosInvitados.length} invitados a la banca.`); e.target.value = null; 
       } catch (error) { alert("❌ Error al leer el Excel."); }
     };
     reader.readAsArrayBuffer(file);
@@ -474,7 +480,6 @@ export default function App() {
     }
   };
 
-  // --- 8. ARRASTRAR Y SOLTAR (CON SELECCIÓN MÚLTIPLE) ---
   const onDragStart = (start) => {
     if (!seleccionados.includes(start.draggableId) && start.type !== 'mesa') {
       setSeleccionados([]);
@@ -500,7 +505,6 @@ export default function App() {
 
     const estadoActivo = vistaActual === 'auditorio' ? { ...auditorio } : { ...comida };
 
-    // --- SWAP MASIVO (MÚLTIPLES SELECCIONADOS) ---
     if (seleccionados.length > 1 && seleccionados.includes(draggableId)) {
         const seq = vistaActual === 'auditorio' ? getSecuenciaAuditorio() : getSecuenciaComida();
         
@@ -558,7 +562,6 @@ export default function App() {
         return;
     }
 
-    // --- SWAP ORIGINAL (UN SOLO ELEMENTO) ---
     if (source.droppableId === destination.droppableId) {
       const nuevaLista = Array.from(estadoActivo[source.droppableId] || []);
       const [movido] = nuevaLista.splice(source.index, 1);
@@ -807,7 +810,7 @@ export default function App() {
 
                   <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '30px 0', height: '45px', backgroundColor: '#cbd5e1', borderRadius: '6px', border: '2px dashed #94a3b8' }}><span style={{ fontWeight: 'bold', letterSpacing: '12px', color: '#475569', fontSize: '16px' }}>P A S I L L O</span></div>
 
-                  {/* HOJA 2 (Ahora hasta la fila 14) */}
+                  {/* HOJA 2 (Ajustada a 8 filas: de la 7 a la 14) */}
                   <div id="auditorio-parte-2" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', alignItems: 'center', backgroundColor: 'white' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: 'transparent', padding: '0 15px', borderRadius: '6px', border: '1px solid transparent', boxSizing: 'border-box' }}>
                       <div style={{ width: '60px', flexShrink: 0 }} /> 
@@ -816,7 +819,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {Array.from({ length: 8 }, (_, fIndex) => { // length: 8 (desde Fila 7 hasta 14)
+                    {Array.from({ length: 8 }, (_, fIndex) => {
                       const f = fIndex + 7;
                       return (
                         <div key={`fila_${f}`} style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0', height: '125px', boxSizing: 'border-box' }}>
