@@ -11,12 +11,13 @@ const initAuditorio = () => {
   const layout = { banca: [] };
   for (let i = 1; i <= 8; i++) layout[`estrado_silla_${i}`] = [];
   
-  for (let f = 1; f <= 16; f++) {
+  // FILAS REDUCIDAS A 14
+  for (let f = 1; f <= 14; f++) {
     for (let s = 1; s <= 13; s++) {
       // Filas 7 y 8, asientos 6, 7 y 8 son para TV UNAM
       if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) continue;
-      // Filas 9 a 16, asientos 6, 7 y 8 son Pasillo Central
-      if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) continue; 
+      // Pasillo central ahora va de la Fila 9 a la 14, asientos 6, 7 y 8
+      if (f >= 9 && f <= 14 && (s >= 6 && s <= 8)) continue; 
       layout[`fila_${f}_silla_${s}`] = [];
     }
   }
@@ -82,7 +83,7 @@ export default function App() {
   const [modoPresentacion, setModoPresentacion] = useState(false);
   const [mostrarMenuDescarga, setMostrarMenuDescarga] = useState(false); 
   
-  // NUEVO ESTADO: Selección Múltiple
+  // SELECCIÓN MÚLTIPLE
   const [seleccionados, setSeleccionados] = useState([]);
 
   const [zoom, setZoom] = useState(1); 
@@ -91,7 +92,7 @@ export default function App() {
   const [invitadoEditando, setInvitadoEditando] = useState(null);
   const pdfRef = useRef(null); 
 
-  // Limpiar seleccionados al cambiar de vista para evitar cruces
+  // Limpiar seleccionados al cambiar de vista
   useEffect(() => { setSeleccionados([]); }, [vistaActual]);
 
   // --- 2. CONEXIÓN EN TIEMPO REAL A FIREBASE ---
@@ -103,7 +104,9 @@ export default function App() {
         if(data.auditorio) setAuditorio(data.auditorio);
         if(data.comida) setComida(data.comida);
         if(data.nombresMesas) setNombresMesas(data.nombresMesas);
-        if(data.ordenMesas) setOrdenMesas(data.ordenMesas);
+        if(data.ordenMesas && Array.isArray(data.ordenMesas) && data.ordenMesas.length > 0) {
+          setOrdenMesas(data.ordenMesas);
+        }
       } else {
         setDoc(docRef, { auditorio: initAuditorio(), comida: initComida(), nombresMesas, ordenMesas });
       }
@@ -192,14 +195,13 @@ export default function App() {
     return ids;
   };
 
-  // Genera el orden lineal de todas las sillas para el Swap Masivo
   const getSecuenciaAuditorio = () => {
     const seq = [];
     for (let i = 1; i <= 8; i++) seq.push(`estrado_silla_${i}`);
-    for (let f = 1; f <= 16; f++) {
+    for (let f = 1; f <= 14; f++) { // Reducido a 14
       for (let s = 1; s <= 13; s++) {
         if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) continue;
-        if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) continue; 
+        if (f >= 9 && f <= 14 && (s >= 6 && s <= 8)) continue; 
         seq.push(`fila_${f}_silla_${s}`);
       }
     }
@@ -309,10 +311,10 @@ export default function App() {
       const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
       datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '' });
     }
-    for (let f = 1; f <= 16; f++) {
+    for (let f = 1; f <= 14; f++) {
       for (let s = 1; s <= 13; s++) {
         if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) continue;
-        if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) continue;
+        if (f >= 9 && f <= 14 && (s >= 6 && s <= 8)) continue;
         const ocupante = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
         datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '' });
       }
@@ -336,7 +338,7 @@ export default function App() {
         filaEstrado.push(oc ? { v: `${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
     }
     matrizAuditorio.push(filaEstrado); matrizAuditorio.push([]); 
-    for(let f=1; f <= 16; f++) {
+    for(let f=1; f <= 14; f++) {
         matrizAuditorio.push([{ v: `FILA ${f}`, s: { font: { bold: true } } }]);
         const filaAsientos = [];
         for(let s=1; s<=13; s++) {
@@ -345,7 +347,7 @@ export default function App() {
                  else filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase });
                  continue;
              }
-             if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) { 
+             if (f >= 9 && f <= 14 && (s >= 6 && s <= 8)) { 
                  filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase }); 
                  continue; 
              }
@@ -362,7 +364,8 @@ export default function App() {
     ordenMesas.forEach((m) => {
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
         for(let fila=0; fila<5; fila++) {
-            const o1 = (comida[`mesa_${m}_silla_${(fila * 2) + 1}`] || [])[0]; const o2 = (comida[`mesa_${m}_silla_${(fila * 2) + 2}`] || [])[0];
+            const o1 = (comida[`mesa_${m}_silla_${(fila * 2) + 1}`] || [])[0]; 
+            const o2 = (comida[`mesa_${m}_silla_${(fila * 2) + 2}`] || [])[0];
             matrizComida.push([
               o1 ? { v: `${o1.nombre}\n${o1.cargo}`, t: 's', s: getExcelStyle(o1.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }, 
               o2 ? { v: `${o2.nombre}\n${o2.cargo}`, t: 's', s: getExcelStyle(o2.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }
@@ -473,7 +476,6 @@ export default function App() {
 
   // --- 8. ARRASTRAR Y SOLTAR (CON SELECCIÓN MÚLTIPLE) ---
   const onDragStart = (start) => {
-    // Si arrastramos una tarjeta que no está en los seleccionados, limpiamos la selección
     if (!seleccionados.includes(start.draggableId) && start.type !== 'mesa') {
       setSeleccionados([]);
     }
@@ -498,7 +500,7 @@ export default function App() {
 
     const estadoActivo = vistaActual === 'auditorio' ? { ...auditorio } : { ...comida };
 
-    // --- LÓGICA DE SWAP MASIVO (MÚLTIPLES SELECCIONADOS) ---
+    // --- SWAP MASIVO (MÚLTIPLES SELECCIONADOS) ---
     if (seleccionados.length > 1 && seleccionados.includes(draggableId)) {
         const seq = vistaActual === 'auditorio' ? getSecuenciaAuditorio() : getSecuenciaComida();
         
@@ -550,19 +552,19 @@ export default function App() {
         const propBloqueo = vistaActual === 'auditorio' ? 'bloqueado_auditorio' : 'bloqueado_comida';
         if (estadoActivo.banca) estadoActivo.banca.sort((a, b) => (a[propBloqueo] === b[propBloqueo] ? 0 : a[propBloqueo] ? 1 : -1));
 
-        if (vistaActual === 'auditorio') setAuditorio(estadoActivo); else setComida(estadoActivo);
-        syncToCloud(vistaActual === 'auditorio' ? estadoActivo : null, vistaActual === 'comida' ? estadoActivo : null, null, null);
+        if (vistaActual === 'auditorio') { setAuditorio(estadoActivo); syncToCloud(estadoActivo, null, null, null); }
+        else { setComida(estadoActivo); syncToCloud(null, estadoActivo, null, null); }
         setSeleccionados([]);
         return;
     }
 
-    // --- LÓGICA ORIGINAL (UN SOLO ELEMENTO) ---
+    // --- SWAP ORIGINAL (UN SOLO ELEMENTO) ---
     if (source.droppableId === destination.droppableId) {
       const nuevaLista = Array.from(estadoActivo[source.droppableId] || []);
       const [movido] = nuevaLista.splice(source.index, 1);
       nuevaLista.splice(destination.index, 0, movido);
-      if (vistaActual === 'auditorio') setAuditorio({ ...estadoActivo, [source.droppableId]: nuevaLista }); else setComida({ ...estadoActivo, [source.droppableId]: nuevaLista });
-      syncToCloud(vistaActual === 'auditorio' ? { ...estadoActivo, [source.droppableId]: nuevaLista } : null, vistaActual === 'comida' ? { ...estadoActivo, [source.droppableId]: nuevaLista } : null, null, null);
+      if (vistaActual === 'auditorio') { setAuditorio({ ...estadoActivo, [source.droppableId]: nuevaLista }); syncToCloud({ ...estadoActivo, [source.droppableId]: nuevaLista }, null, null, null); }
+      else { setComida({ ...estadoActivo, [source.droppableId]: nuevaLista }); syncToCloud(null, { ...estadoActivo, [source.droppableId]: nuevaLista }, null, null); }
       return;
     }
 
@@ -585,43 +587,49 @@ export default function App() {
     }
 
     estadoActivo[source.droppableId] = origenLista; estadoActivo[destination.droppableId] = destinoLista;
-    if (vistaActual === 'auditorio') setAuditorio(estadoActivo); else setComida(estadoActivo);
-    syncToCloud(vistaActual === 'auditorio' ? estadoActivo : null, vistaActual === 'comida' ? estadoActivo : null, null, null);
+    if (vistaActual === 'auditorio') { setAuditorio(estadoActivo); syncToCloud(estadoActivo, null, null, null); }
+    else { setComida(estadoActivo); syncToCloud(null, estadoActivo, null, null); }
   };
 
   const layoutActivo = vistaActual === 'auditorio' ? auditorio : comida;
   const ocupantesAuditorio = Object.keys(auditorio).reduce((acc, key) => (key !== 'banca' && !key.includes('estrado')) ? acc + (auditorio[key] || []).length : acc, 0);
   const ocupantesComida = Object.keys(comida).reduce((acc, key) => (key !== 'banca') ? acc + (comida[key] || []).length : acc, 0);
 
+  const ordenSeguro = (ordenMesas && ordenMesas.length > 0) ? ordenMesas : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   const bloquesMesas = [];
-  for (let i = 0; i < ordenMesas.length; i += 3) { bloquesMesas.push(ordenMesas.slice(i, i + 3)); }
+  for (let i = 0; i < ordenSeguro.length; i += 3) { bloquesMesas.push(ordenSeguro.slice(i, i + 3)); }
 
-  const renderMesaLayout = (m, indexWithinRow) => (
-    <Draggable key={`mesa_draggable_${m}`} draggableId={`mesa_draggable_${m}`} index={indexWithinRow} isDragDisabled={!modoEdicion}>
-      {(provided, snapshot) => (
-        <div ref={provided.innerRef} {...provided.draggableProps} style={{ ...provided.draggableProps.style, width: '320px', backgroundColor: paletaMesas[m - 1].bg, border: `3px solid ${paletaMesas[m - 1].border}`, borderRadius: '8px', padding: '15px 20px 20px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: snapshot.isDragging ? '0 15px 25px rgba(0,0,0,0.3)' : '0 4px 6px -1px rgba(0,0,0,0.1)', flexShrink: 0, opacity: snapshot.isDragging ? 0.9 : 1, position: 'relative' }}>
-          {modoEdicion && (
-            <div {...provided.dragHandleProps} title="Arrastrar mesa para reordenarla" style={{ width: '100%', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: snapshot.isDragging ? 'grabbing' : 'grab', marginBottom: '8px', color: paletaMesas[m - 1].border, opacity: 0.6 }}>
-              <span style={{ fontSize: '18px', lineHeight: '0' }}>⣿</span>
-            </div>
-          )}
+  const renderMesaLayout = (m, indexWithinRow) => {
+    const indiceColor = (m > 0 && m <= 12) ? m - 1 : 0;
+    const coloresMesa = paletaMesas[indiceColor] || { bg: '#ffffff', border: '#cbd5e1' };
 
-          <div style={{ width: '100%', marginBottom: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
-            <input type="text" readOnly={!modoEdicion} value={nombresMesas[`mesa_${m}`] || ''} onChange={(e) => manejarEdicionNombreMesa(m, e.target.value)} onBlur={manejarBlurNombreMesa} style={{ flexGrow: 1, height: '40px', lineHeight: '36px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '0 10px', borderRadius: '4px', border: modoEdicion ? '1px solid white' : 'none', backgroundColor: modoEdicion ? 'rgba(255,255,255,0.7)' : 'transparent', outline: 'none', boxSizing: 'border-box', fontFamily: 'sans-serif' }} />
+    return (
+      <Draggable key={`mesa_draggable_${m}`} draggableId={`mesa_draggable_${m}`} index={indexWithinRow} isDragDisabled={!modoEdicion}>
+        {(provided, snapshot) => (
+          <div ref={provided.innerRef} {...provided.draggableProps} style={{ ...provided.draggableProps.style, width: '320px', backgroundColor: coloresMesa.bg, border: `3px solid ${coloresMesa.border}`, borderRadius: '8px', padding: '15px 20px 20px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: snapshot.isDragging ? '0 15px 25px rgba(0,0,0,0.3)' : '0 4px 6px -1px rgba(0,0,0,0.1)', flexShrink: 0, opacity: snapshot.isDragging ? 0.9 : 1, position: 'relative' }}>
             {modoEdicion && (
-              <button onClick={() => toggleSeleccionGrupo(getIdsMesa(m))} title="Seleccionar a todos los de la mesa" style={{ padding: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>✓</button>
+              <div {...provided.dragHandleProps} title="Arrastrar mesa para reordenarla" style={{ width: '100%', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: snapshot.isDragging ? 'grabbing' : 'grab', marginBottom: '8px', color: coloresMesa.border, opacity: 0.6 }}>
+                <span style={{ fontSize: '18px', lineHeight: '0' }}>⣿</span>
+              </div>
             )}
+
+            <div style={{ width: '100%', marginBottom: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+              <input type="text" readOnly={!modoEdicion} value={nombresMesas[`mesa_${m}`] || ''} onChange={(e) => manejarEdicionNombreMesa(m, e.target.value)} onBlur={manejarBlurNombreMesa} style={{ flexGrow: 1, height: '40px', lineHeight: '36px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '0 10px', borderRadius: '4px', border: modoEdicion ? '1px solid white' : 'none', backgroundColor: modoEdicion ? 'rgba(255,255,255,0.7)' : 'transparent', outline: 'none', boxSizing: 'border-box', fontFamily: 'sans-serif' }} />
+              {modoEdicion && (
+                <button onClick={() => toggleSeleccionGrupo(getIdsMesa(m))} title="Seleccionar a todos los de la mesa" style={{ padding: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>✓</button>
+              )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '100%' }}>
+              {Array.from({ length: 10 }, (_, s) => {
+                const ocupante = layoutActivo[`mesa_${m}_silla_${s+1}`] || [];
+                return <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} />
+              })}
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '100%' }}>
-            {Array.from({ length: 10 }, (_, s) => {
-              const ocupante = layoutActivo[`mesa_${m}_silla_${s+1}`] || [];
-              return <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} />
-            })}
-          </div>
-        </div>
-      )}
-    </Draggable>
-  );
+        )}
+      </Draggable>
+    );
+  };
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', fontFamily: 'sans-serif', backgroundColor: '#f1f5f9', overflow: 'hidden' }}>
@@ -652,7 +660,7 @@ export default function App() {
       )}
 
       <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        {/* PANEL BANCA */}
+        {/* PANEL BANCA (SOLO VISIBLE EN MODO EDICIÓN Y SI NO ESTÁ EN PANTALLA COMPLETA) */}
         <div style={{ width: '320px', flexShrink: 0, backgroundColor: 'white', padding: '15px', borderRight: '1px solid #cbd5e1', display: (modoEdicion && !modoPresentacion) ? 'flex' : 'none', flexDirection: 'column', zIndex: 10 }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             Panel de Edición <span style={{ fontSize: '10px', backgroundColor: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '12px' }}>🟢 Abierto</span>
@@ -708,7 +716,6 @@ export default function App() {
 
           <div style={{ position: 'fixed', top: '20px', right: '30px', zIndex: 50, display: 'flex', gap: '15px', alignItems: 'center' }}>
             
-            {/* BADGE SELECCIONADOS */}
             {modoEdicion && seleccionados.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#fef3c7', padding: '6px 15px', borderRadius: '8px', border: '1px solid #f59e0b', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
                 <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#b45309' }}>{seleccionados.length} Seleccionados</span>
@@ -789,10 +796,6 @@ export default function App() {
                             <div style={{ display: 'flex', gap: '10px' }}>
                               {Array.from({ length: 13 }, (_, sIndex) => {
                                 const s = sIndex + 1;
-                                if (f === 5 && s === 6) return (<div key="tv_unam" style={{ position: 'relative', width: '380px', height: '95px', flexShrink: 0 }}><div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '240px', backgroundColor: '#1e293b', color: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', fontWeight: 'bold', fontSize: '18px', letterSpacing: '2px', zIndex: 9999, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)' }}>📺 TV UNAM</div></div>);
-                                if (f === 5 && (s === 7 || s === 8)) return null;
-                                if (f === 6 && s === 6) return <div key="tv_unam_spacer" style={{ width: '380px', height: '95px', flexShrink: 0 }} />;
-                                if (f === 6 && (s === 7 || s === 8)) return null;
                                 return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} />
                               })}
                             </div>
@@ -804,7 +807,7 @@ export default function App() {
 
                   <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '30px 0', height: '45px', backgroundColor: '#cbd5e1', borderRadius: '6px', border: '2px dashed #94a3b8' }}><span style={{ fontWeight: 'bold', letterSpacing: '12px', color: '#475569', fontSize: '16px' }}>P A S I L L O</span></div>
 
-                  {/* HOJA 2 */}
+                  {/* HOJA 2 (Ahora hasta la fila 14) */}
                   <div id="auditorio-parte-2" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', alignItems: 'center', backgroundColor: 'white' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: 'transparent', padding: '0 15px', borderRadius: '6px', border: '1px solid transparent', boxSizing: 'border-box' }}>
                       <div style={{ width: '60px', flexShrink: 0 }} /> 
@@ -813,7 +816,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {Array.from({ length: 10 }, (_, fIndex) => {
+                    {Array.from({ length: 8 }, (_, fIndex) => { // length: 8 (desde Fila 7 hasta 14)
                       const f = fIndex + 7;
                       return (
                         <div key={`fila_${f}`} style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0', height: '125px', boxSizing: 'border-box' }}>
@@ -825,7 +828,7 @@ export default function App() {
                               if (f === 7 && (s === 7 || s === 8)) return null;
                               if (f === 8 && s === 6) return <div key="tv_unam_spacer" style={{ width: '380px', height: '95px', flexShrink: 0 }} />;
                               if (f === 8 && (s === 7 || s === 8)) return null;
-                              if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) return <div key={`pasillo_${f}_${s}`} style={{ width: '120px', height: '95px', flexShrink: 0 }} />;
+                              if (f >= 9 && f <= 14 && (s >= 6 && s <= 8)) return <div key={`pasillo_${f}_${s}`} style={{ width: '120px', height: '95px', flexShrink: 0 }} />;
                               
                               return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} />
                             })}
