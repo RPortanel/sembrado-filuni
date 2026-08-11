@@ -11,10 +11,12 @@ const initAuditorio = () => {
   const layout = { banca: [] };
   for (let i = 1; i <= 8; i++) layout[`estrado_silla_${i}`] = [];
   
-  for (let f = 1; f <= 14; f++) {
+  for (let f = 1; f <= 16; f++) {
     for (let s = 1; s <= 13; s++) {
-      if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) continue;
-      if (f >= 7 && f <= 14 && (s === 6 || s === 7 || s === 8)) continue; 
+      // TV UNAM ahora ocupa Fila 7 y 8, asientos 6, 7 y 8
+      if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) continue;
+      // Pasillo central ahora va de la Fila 9 a la 16, asientos 6, 7 y 8
+      if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) continue; 
       layout[`fila_${f}_silla_${s}`] = [];
     }
   }
@@ -86,7 +88,8 @@ export default function App() {
   const [ordenMesas, setOrdenMesas] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   const [historial, setHistorial] = useState([]);
   const [modoEdicion, setModoEdicion] = useState(false); 
-  const [mostrarMenuDescarga, setMostrarMenuDescarga] = useState(false); // NUEVO ESTADO PARA EL MENÚ
+  const [modoPresentacion, setModoPresentacion] = useState(false);
+  const [mostrarMenuDescarga, setMostrarMenuDescarga] = useState(false); 
   const [zoom, setZoom] = useState(1); 
   const [busquedaBanca, setBusquedaBanca] = useState('');
   const [busquedaLienzo, setBusquedaLienzo] = useState('');
@@ -268,6 +271,7 @@ export default function App() {
     const wb = XLSX.utils.book_new();
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 
+    // HOJA 1: EL DIRECTORIO MAESTRO
     const directorio = obtenerTodosLosInvitados().map(inv => ({
       'ID_NO_TOCAR': inv.id,
       'Dependencia': inv.dependencia,
@@ -276,6 +280,7 @@ export default function App() {
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(directorio), "1. Directorio Editable");
 
+    // HOJA 2: LISTA AUDITORIO
     const datosAuditorio = [];
     for (let i = 1; i <= 8; i++) {
       const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
@@ -283,14 +288,15 @@ export default function App() {
     }
     for (let f = 1; f <= 14; f++) {
       for (let s = 1; s <= 13; s++) {
-        if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) continue;
-        if (f >= 7 && f <= 14 && (s === 6 || s === 7 || s === 8)) continue;
+        if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) continue;
+        if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) continue;
         const ocupante = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
         datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '' });
       }
     }
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosAuditorio), "2. Lista Auditorio");
 
+    // HOJA 3: LISTA COMIDA
     const datosComida = [];
     ordenMesas.forEach(m => {
       for(let s=1; s<=10; s++) {
@@ -300,6 +306,7 @@ export default function App() {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosComida), "3. Lista Comida");
 
+    // HOJA 4: GRÁFICO AUDITORIO
     const matrizAuditorio = [];
     matrizAuditorio.push([{ v: "ESTRADO (Presidium)", s: { font: { bold: true } } }]);
     const filaEstrado = [];
@@ -308,16 +315,16 @@ export default function App() {
         filaEstrado.push(oc ? { v: `${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
     }
     matrizAuditorio.push(filaEstrado); matrizAuditorio.push([]); 
-    for(let f=1; f <= 14; f++) {
+    for(let f=1; f <= 16; f++) {
         matrizAuditorio.push([{ v: `FILA ${f}`, s: { font: { bold: true } } }]);
         const filaAsientos = [];
         for(let s=1; s<=13; s++) {
-             if ((f === 5 || f === 6) && (s >= 6 && s <= 8)) {
-                 if (s === 7) filaAsientos.push({ v: "[ TV UNAM ]", t: 's', s: { fill: { patternType: 'solid', fgColor: { rgb: "1E293B" } }, font: { color: { rgb: "FFFFFF" }, bold: true }, alignment: { vertical: 'center', horizontal: 'center' } } });
+             if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) {
+                 if (f === 7 && s === 7) filaAsientos.push({ v: "[ TV UNAM ]", t: 's', s: { fill: { patternType: 'solid', fgColor: { rgb: "1E293B" } }, font: { color: { rgb: "FFFFFF" }, bold: true }, alignment: { vertical: 'center', horizontal: 'center' } } });
                  else filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase });
                  continue;
              }
-             if (f >= 7 && f <= 14 && (s === 6 || s === 7 || s === 8)) { 
+             if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) { 
                  filaAsientos.push({ v: "", t: 's', s: celdaVaciaBase }); 
                  continue; 
              }
@@ -330,6 +337,7 @@ export default function App() {
     }
     const ws3 = XLSX.utils.aoa_to_sheet(matrizAuditorio); ws3['!cols'] = Array(16).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws3, "4. Gráfico Auditorio");
 
+    // HOJA 5: GRÁFICO COMIDA
     const matrizComida = [];
     ordenMesas.forEach((m) => {
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
@@ -476,7 +484,7 @@ export default function App() {
         const xOffset = (pdfWidth - imgWidth) / 2; const yOffset = topReserved + (maxImgHeight - imgHeight) / 2;
 
         pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight);
-        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(100, 116, 139); pdf.text(`Fecha de generación: ${fechaHoy}`, pdfWidth - 10, pdfHeightSheet - 7, { align: 'right' });
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(100, 116, 139); pdf.text(`Fecha de generation: ${fechaHoy}`, pdfWidth - 10, pdfHeightSheet - 7, { align: 'right' });
       }
       pdf.save(`Protocolo-${vistaActual}.pdf`);
     } finally {
@@ -629,8 +637,9 @@ export default function App() {
       )}
 
       <DragDropContext onDragEnd={onDragEnd}>
-        {/* PANEL BANCA (SOLO VISIBLE EN MODO EDICIÓN) */}
-        <div style={{ width: '320px', flexShrink: 0, backgroundColor: 'white', padding: '15px', borderRight: '1px solid #cbd5e1', display: modoEdicion ? 'flex' : 'none', flexDirection: 'column', zIndex: 10 }}>
+        
+        {/* PANEL BANCA (SOLO VISIBLE EN MODO EDICIÓN Y SI NO ESTÁ EN PANTALLA COMPLETA) */}
+        <div style={{ width: '320px', flexShrink: 0, backgroundColor: 'white', padding: '15px', borderRight: '1px solid #cbd5e1', display: (modoEdicion && !modoPresentacion) ? 'flex' : 'none', flexDirection: 'column', zIndex: 10 }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             Panel de Edición
             <span style={{ fontSize: '10px', backgroundColor: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '12px' }}>🟢 Abierto</span>
@@ -679,7 +688,7 @@ export default function App() {
         <div style={{ flexGrow: 1, overflow: 'auto', padding: '20px', backgroundColor: '#e2e8f0', position: 'relative' }}>
           
           {/* BARRA SUPERIOR FLOTANTE IZQUIERDA (BOTÓN VISTAS) */}
-          <div style={{ position: 'fixed', top: '20px', left: modoEdicion ? '350px' : '30px', zIndex: 50, transition: 'left 0.2s' }}>
+          <div style={{ position: 'fixed', top: '20px', left: (modoEdicion && !modoPresentacion) ? '350px' : '30px', zIndex: 50, transition: 'left 0.2s' }}>
             <button 
               onClick={() => setVistaActual(vistaActual === 'auditorio' ? 'comida' : 'auditorio')}
               style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: '#3b82f6', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
@@ -709,9 +718,20 @@ export default function App() {
               </div>
             )}
 
+            {/* BOTÓN PANTALLA COMPLETA (SOLO EN MODO EDICIÓN) */}
+            {modoEdicion && (
+              <button 
+                onClick={() => setModoPresentacion(!modoPresentacion)}
+                title="Ocultar o Mostrar el Panel de Control Lateral"
+                style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: modoPresentacion ? '#f59e0b' : '#3b82f6', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
+              >
+                {modoPresentacion ? '🗗 Salir Pantalla Completa' : '🖥️ Pantalla Completa'}
+              </button>
+            )}
+
             {/* BOTÓN ACTIVAR/DESACTIVAR EDICIÓN */}
             <button 
-              onClick={() => setModoEdicion(!modoEdicion)}
+              onClick={() => { setModoEdicion(!modoEdicion); setMostrarMenuDescarga(false); if(modoEdicion) setModoPresentacion(false); }}
               title={modoEdicion ? "Bloquear sembrado y ocultar panel" : "Habilitar panel de control y arrastre"}
               style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: modoEdicion ? '#f59e0b' : '#10b981', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
             >
@@ -788,10 +808,6 @@ export default function App() {
                             <div style={{ display: 'flex', gap: '10px' }}>
                               {Array.from({ length: 13 }, (_, sIndex) => {
                                 const s = sIndex + 1;
-                                if (f === 5 && s === 6) return (<div key="tv_unam" style={{ position: 'relative', width: '380px', height: '95px', flexShrink: 0 }}><div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '240px', backgroundColor: '#1e293b', color: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', fontWeight: 'bold', fontSize: '18px', letterSpacing: '2px', zIndex: 9999, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)' }}>📺 TV UNAM</div></div>);
-                                if (f === 5 && (s === 7 || s === 8)) return null;
-                                if (f === 6 && s === 6) return <div key="tv_unam_spacer" style={{ width: '380px', height: '95px', flexShrink: 0 }} />;
-                                if (f === 6 && (s === 7 || s === 8)) return null;
                                 return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} />
                               })}
                             </div>
@@ -819,7 +835,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {Array.from({ length: 8 }, (_, fIndex) => {
+                    {Array.from({ length: 10 }, (_, fIndex) => {
                       const f = fIndex + 7;
                       return (
                         <div key={`fila_${f}`} style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0', height: '125px', boxSizing: 'border-box' }}>
@@ -827,7 +843,12 @@ export default function App() {
                           <div style={{ display: 'flex', gap: '10px' }}>
                             {Array.from({ length: 13 }, (_, sIndex) => {
                               const s = sIndex + 1;
-                              if (s === 6 || s === 7 || s === 8) return <div key={`pasillo_${f}_${s}`} style={{ width: '120px', height: '95px', flexShrink: 0 }} />;
+                              if (f === 7 && s === 6) return (<div key="tv_unam" style={{ position: 'relative', width: '380px', height: '95px', flexShrink: 0 }}><div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '240px', backgroundColor: '#1e293b', color: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', fontWeight: 'bold', fontSize: '18px', letterSpacing: '2px', zIndex: 9999, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)' }}>📺 TV UNAM</div></div>);
+                              if (f === 7 && (s === 7 || s === 8)) return null;
+                              if (f === 8 && s === 6) return <div key="tv_unam_spacer" style={{ width: '380px', height: '95px', flexShrink: 0 }} />;
+                              if (f === 8 && (s === 7 || s === 8)) return null;
+                              if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) return <div key={`pasillo_${f}_${s}`} style={{ width: '120px', height: '95px', flexShrink: 0 }} />;
+                              
                               return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} />
                             })}
                           </div>
