@@ -13,9 +13,9 @@ const initAuditorio = () => {
   
   for (let f = 1; f <= 16; f++) {
     for (let s = 1; s <= 13; s++) {
-      // TV UNAM ahora ocupa Fila 7 y 8, asientos 6, 7 y 8
+      // Filas 7 y 8, asientos 6, 7 y 8 son para TV UNAM
       if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) continue;
-      // Pasillo central ahora va de la Fila 9 a la 16, asientos 6, 7 y 8
+      // Filas 9 a 16, asientos 6, 7 y 8 son Pasillo Central
       if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) continue; 
       layout[`fila_${f}_silla_${s}`] = [];
     }
@@ -33,9 +33,7 @@ const initComida = () => {
 
 const getColorDependencia = (dependencia) => {
   if (!dependencia) return '#cbd5e1'; 
-  const depNormalizada = String(dependencia).toLowerCase().trim()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  
+  const depNormalizada = String(dependencia).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (depNormalizada === 'unam') return '#1e3a8a'; 
   if (depNormalizada === 'unam cdc') return '#3b82f6'; 
   if (depNormalizada === 'uv') return '#f97316'; 
@@ -43,20 +41,14 @@ const getColorDependencia = (dependencia) => {
   if (depNormalizada === 'invitado especial') return '#84cc16'; 
   if (depNormalizada === 'dgpyfe') return '#facc15'; 
   if (depNormalizada.includes('rector')) return '#9333ea';
-  
   return '#cbd5e1'; 
 };
 
 const getExcelStyle = (dependencia) => {
   const baseStyle = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
   if (!dependencia) return { ...baseStyle, fill: { patternType: 'solid', fgColor: { rgb: 'CBD5E1' } }, font: { color: { rgb: '000000' } } }; 
-  
-  const depNormalizada = String(dependencia).toLowerCase().trim()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    
-  let bg = 'CBD5E1';
-  let text = '000000'; 
-
+  const depNormalizada = String(dependencia).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  let bg = 'CBD5E1'; let text = '000000'; 
   if (depNormalizada === 'unam') { bg = '1E3A8A'; text = 'FFFFFF'; } 
   else if (depNormalizada === 'unam cdc') { bg = '3B82F6'; text = 'FFFFFF'; }
   else if (depNormalizada === 'uv') { bg = 'F97316'; text = 'FFFFFF'; }
@@ -64,7 +56,6 @@ const getExcelStyle = (dependencia) => {
   else if (depNormalizada === 'invitado especial') { bg = '84CC16'; text = '000000'; }
   else if (depNormalizada === 'dgpyfe') { bg = 'FACC15'; text = '000000'; }
   else if (depNormalizada.includes('rector')) { bg = '9333EA'; text = 'FFFFFF'; }
-
   return { fill: { patternType: 'solid', fgColor: { rgb: bg } }, font: { color: { rgb: text }, bold: true }, alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 };
 
@@ -90,11 +81,18 @@ export default function App() {
   const [modoEdicion, setModoEdicion] = useState(false); 
   const [modoPresentacion, setModoPresentacion] = useState(false);
   const [mostrarMenuDescarga, setMostrarMenuDescarga] = useState(false); 
+  
+  // NUEVO ESTADO: Selección Múltiple
+  const [seleccionados, setSeleccionados] = useState([]);
+
   const [zoom, setZoom] = useState(1); 
   const [busquedaBanca, setBusquedaBanca] = useState('');
   const [busquedaLienzo, setBusquedaLienzo] = useState('');
   const [invitadoEditando, setInvitadoEditando] = useState(null);
   const pdfRef = useRef(null); 
+
+  // Limpiar seleccionados al cambiar de vista para evitar cruces
+  useEffect(() => { setSeleccionados([]); }, [vistaActual]);
 
   // --- 2. CONEXIÓN EN TIEMPO REAL A FIREBASE ---
   useEffect(() => {
@@ -121,9 +119,7 @@ export default function App() {
         nombresMesas: nuevosNombres || nombresMesas,
         ordenMesas: nuevoOrden || ordenMesas
       });
-    } catch(error) {
-      console.error("Error sincronizando a Firebase:", error);
-    }
+    } catch(error) { console.error("Error sincronizando a Firebase:", error); }
   };
 
   const guardarEnHistorial = () => {
@@ -143,98 +139,128 @@ export default function App() {
   const deshacerUltimaAccion = () => {
     if (historial.length === 0) return;
     const estadoAnterior = historial[historial.length - 1];
-    const nuevoHistorial = historial.slice(0, -1);
-    
-    setHistorial(nuevoHistorial);
-    setAuditorio(estadoAnterior.auditorio);
-    setComida(estadoAnterior.comida);
-    setNombresMesas(estadoAnterior.nombresMesas);
-    setOrdenMesas(estadoAnterior.ordenMesas);
-    
+    setHistorial(historial.slice(0, -1));
+    setAuditorio(estadoAnterior.auditorio); setComida(estadoAnterior.comida);
+    setNombresMesas(estadoAnterior.nombresMesas); setOrdenMesas(estadoAnterior.ordenMesas);
     syncToCloud(estadoAnterior.auditorio, estadoAnterior.comida, estadoAnterior.nombresMesas, estadoAnterior.ordenMesas);
+    setSeleccionados([]);
   };
 
   const obtenerTodosLosInvitados = () => {
     const mapa = new Map();
     const extraer = (layout) => {
-      Object.values(layout).forEach(lista => {
-        lista.forEach(inv => { mapa.set(inv.id, inv); });
-      });
+      Object.values(layout).forEach(lista => { lista.forEach(inv => { mapa.set(inv.id, inv); }); });
     };
-    extraer(auditorio);
-    extraer(comida);
+    extraer(auditorio); extraer(comida);
     return Array.from(mapa.values());
+  };
+
+  // --- LÓGICA DE SELECCIÓN MÚLTIPLE ---
+  const toggleSeleccion = (id) => {
+    setSeleccionados(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
+
+  const toggleSeleccionGrupo = (idsArray) => {
+    if(!idsArray || idsArray.length === 0) return;
+    const todosSeleccionados = idsArray.every(id => seleccionados.includes(id));
+    if (todosSeleccionados) {
+      setSeleccionados(prev => prev.filter(id => !idsArray.includes(id)));
+    } else {
+      setSeleccionados(prev => Array.from(new Set([...prev, ...idsArray])));
+    }
+  };
+
+  const getIdsEstrado = () => {
+    const ids = [];
+    for (let i = 1; i <= 8; i++) {
+      const oc = auditorio[`estrado_silla_${i}`]; if (oc && oc.length > 0) ids.push(oc[0].id);
+    }
+    return ids;
+  };
+  const getIdsFila = (f) => {
+    const ids = [];
+    for (let s = 1; s <= 13; s++) {
+      const oc = auditorio[`fila_${f}_silla_${s}`]; if (oc && oc.length > 0) ids.push(oc[0].id);
+    }
+    return ids;
+  };
+  const getIdsMesa = (m) => {
+    const ids = [];
+    for (let s = 1; s <= 10; s++) {
+      const oc = comida[`mesa_${m}_silla_${s}`]; if (oc && oc.length > 0) ids.push(oc[0].id);
+    }
+    return ids;
+  };
+
+  // Genera el orden lineal de todas las sillas para el Swap Masivo
+  const getSecuenciaAuditorio = () => {
+    const seq = [];
+    for (let i = 1; i <= 8; i++) seq.push(`estrado_silla_${i}`);
+    for (let f = 1; f <= 16; f++) {
+      for (let s = 1; s <= 13; s++) {
+        if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) continue;
+        if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) continue; 
+        seq.push(`fila_${f}_silla_${s}`);
+      }
+    }
+    return seq;
+  };
+
+  const getSecuenciaComida = () => {
+    const seq = [];
+    ordenMesas.forEach(m => {
+      for (let s = 1; s <= 10; s++) seq.push(`mesa_${m}_silla_${s}`);
+    });
+    return seq;
   };
 
   // --- 3. LÓGICAS DE BLOQUEO, ELIMINACIÓN Y EDICIÓN ---
   const toggleBloqueoBanca = (id) => {
-    if(!modoEdicion) return;
-    guardarEnHistorial(); 
+    if(!modoEdicion) return; guardarEnHistorial(); 
     const propBloqueo = vistaActual === 'auditorio' ? 'bloqueado_auditorio' : 'bloqueado_comida';
-    
     const nuevoAuditorio = { ...auditorio };
-    Object.keys(nuevoAuditorio).forEach(key => {
-        nuevoAuditorio[key] = nuevoAuditorio[key].map(inv => inv.id === id ? { ...inv, [propBloqueo]: !inv[propBloqueo] } : inv);
-    });
+    Object.keys(nuevoAuditorio).forEach(key => { nuevoAuditorio[key] = nuevoAuditorio[key].map(inv => inv.id === id ? { ...inv, [propBloqueo]: !inv[propBloqueo] } : inv); });
     if (nuevoAuditorio.banca) nuevoAuditorio.banca.sort((a, b) => (a.bloqueado_auditorio === b.bloqueado_auditorio ? 0 : a.bloqueado_auditorio ? 1 : -1));
-
     const nuevaComida = { ...comida };
-    Object.keys(nuevaComida).forEach(key => {
-        nuevaComida[key] = nuevaComida[key].map(inv => inv.id === id ? { ...inv, [propBloqueo]: !inv[propBloqueo] } : inv);
-    });
+    Object.keys(nuevaComida).forEach(key => { nuevaComida[key] = nuevaComida[key].map(inv => inv.id === id ? { ...inv, [propBloqueo]: !inv[propBloqueo] } : inv); });
     if (nuevaComida.banca) nuevaComida.banca.sort((a, b) => (a.bloqueado_comida === b.bloqueado_comida ? 0 : a.bloqueado_comida ? 1 : -1));
-
-    setAuditorio(nuevoAuditorio); setComida(nuevaComida);
-    syncToCloud(nuevoAuditorio, nuevaComida, null, null);
+    setAuditorio(nuevoAuditorio); setComida(nuevaComida); syncToCloud(nuevoAuditorio, nuevaComida, null, null);
   };
 
   const eliminarInvitadoDeBanca = (id) => {
-    if(!modoEdicion) return;
-    if (!window.confirm("¿Seguro que deseas eliminar a este invitado de todo el evento?")) return;
+    if(!modoEdicion) return; if (!window.confirm("¿Seguro que deseas eliminar a este invitado del evento?")) return;
     guardarEnHistorial(); 
-
     const purgarLayout = (layout) => {
       const nuevoLayout = { ...layout };
-      Object.keys(nuevoLayout).forEach(key => {
-        nuevoLayout[key] = nuevoLayout[key].filter(inv => inv.id !== id);
-      });
+      Object.keys(nuevoLayout).forEach(key => { nuevoLayout[key] = nuevoLayout[key].filter(inv => inv.id !== id); });
       return nuevoLayout;
     };
-
-    const nuevoAuditorio = purgarLayout(auditorio);
-    const nuevaComida = purgarLayout(comida);
-    
-    setAuditorio(nuevoAuditorio);
-    setComida(nuevaComida);
-    syncToCloud(nuevoAuditorio, nuevaComida, null, null);
+    const nuevoAuditorio = purgarLayout(auditorio); const nuevaComida = purgarLayout(comida);
+    setAuditorio(nuevoAuditorio); setComida(nuevaComida); syncToCloud(nuevoAuditorio, nuevaComida, null, null);
+    setSeleccionados(prev => prev.filter(sel => sel !== id));
   };
 
   const guardarEdicion = (invitadoActualizado) => {
     guardarEnHistorial(); 
     const actualizarLayout = (layout) => {
       const nuevoLayout = { ...layout };
-      Object.keys(nuevoLayout).forEach(key => {
-        nuevoLayout[key] = nuevoLayout[key].map(inv => inv.id === invitadoActualizado.id ? invitadoActualizado : inv);
-      });
+      Object.keys(nuevoLayout).forEach(key => { nuevoLayout[key] = nuevoLayout[key].map(inv => inv.id === invitadoActualizado.id ? invitadoActualizado : inv); });
       return nuevoLayout;
     };
-    
-    const nuevoAuditorio = actualizarLayout(auditorio);
-    const nuevaComida = actualizarLayout(comida);
-    setAuditorio(nuevoAuditorio); setComida(nuevaComida);
-    syncToCloud(nuevoAuditorio, nuevaComida, null, null);
+    const nuevoAuditorio = actualizarLayout(auditorio); const nuevaComida = actualizarLayout(comida);
+    setAuditorio(nuevoAuditorio); setComida(nuevaComida); syncToCloud(nuevoAuditorio, nuevaComida, null, null);
     setInvitadoEditando(null); 
   };
 
   const manejarEdicionNombreMesa = (m, valor) => {
-    if(!modoEdicion) return;
-    setNombresMesas(prev => ({...prev, [`mesa_${m}`]: valor}));
+    if(!modoEdicion) return; setNombresMesas(prev => ({...prev, [`mesa_${m}`]: valor}));
   }
   const manejarBlurNombreMesa = () => syncToCloud(null, null, nombresMesas, null);
 
   // --- 4. RESPALDOS LOCALES (JSON) ---
   const descargarRespaldo = () => {
-    const datos = { auditorio, comida, nombresMesas, ordenMesas };
+    const ordenAExportar = (ordenMesas && ordenMesas.length > 0) ? ordenMesas : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    const datos = { auditorio, comida, nombresMesas, ordenMesas: ordenAExportar };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(datos));
     const elementoEnlace = document.createElement('a');
     elementoEnlace.setAttribute("href", dataStr);
@@ -254,13 +280,15 @@ export default function App() {
           const auditorioSeguro = { ...initAuditorio(), ...parseado.auditorio };
           const comidaSegura = { ...initComida(), ...parseado.comida };
           const nombresSeguros = { ...nombresMesas, ...(parseado.nombresMesas || {}) };
-          const ordenSeguro = parseado.ordenMesas || [1,2,3,4,5,6,7,8,9,10,11,12];
-
+          let ordenSeguro = [1,2,3,4,5,6,7,8,9,10,11,12];
+          if (parseado.ordenMesas && Array.isArray(parseado.ordenMesas) && parseado.ordenMesas.length > 0) {
+            ordenSeguro = parseado.ordenMesas;
+          }
           setAuditorio(auditorioSeguro); setComida(comidaSegura); setNombresMesas(nombresSeguros); setOrdenMesas(ordenSeguro);
           syncToCloud(auditorioSeguro, comidaSegura, nombresSeguros, ordenSeguro);
-          alert('✅ Respaldo cargado y sincronizado en la nube correctamente.');
-        } else { alert('❌ El archivo no tiene el formato correcto.'); }
-      } catch (error) { alert("❌ Error al leer el archivo de respaldo."); }
+          alert('✅ Respaldo JSON cargado y sincronizado correctamente.');
+        } else { alert('❌ Formato incorrecto.'); }
+      } catch (error) { alert("❌ Error al leer el JSON."); }
       e.target.value = null;
     };
     reader.readAsText(file);
@@ -271,22 +299,17 @@ export default function App() {
     const wb = XLSX.utils.book_new();
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 
-    // HOJA 1: EL DIRECTORIO MAESTRO
     const directorio = obtenerTodosLosInvitados().map(inv => ({
-      'ID_NO_TOCAR': inv.id,
-      'Dependencia': inv.dependencia,
-      'Nombre': inv.nombre,
-      'Cargo': inv.cargo
+      'ID_NO_TOCAR': inv.id, 'Dependencia': inv.dependencia, 'Nombre': inv.nombre, 'Cargo': inv.cargo
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(directorio), "1. Directorio Editable");
 
-    // HOJA 2: LISTA AUDITORIO
     const datosAuditorio = [];
     for (let i = 1; i <= 8; i++) {
       const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
       datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '' });
     }
-    for (let f = 1; f <= 14; f++) {
+    for (let f = 1; f <= 16; f++) {
       for (let s = 1; s <= 13; s++) {
         if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) continue;
         if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) continue;
@@ -296,7 +319,6 @@ export default function App() {
     }
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosAuditorio), "2. Lista Auditorio");
 
-    // HOJA 3: LISTA COMIDA
     const datosComida = [];
     ordenMesas.forEach(m => {
       for(let s=1; s<=10; s++) {
@@ -306,7 +328,6 @@ export default function App() {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosComida), "3. Lista Comida");
 
-    // HOJA 4: GRÁFICO AUDITORIO
     const matrizAuditorio = [];
     matrizAuditorio.push([{ v: "ESTRADO (Presidium)", s: { font: { bold: true } } }]);
     const filaEstrado = [];
@@ -337,13 +358,11 @@ export default function App() {
     }
     const ws3 = XLSX.utils.aoa_to_sheet(matrizAuditorio); ws3['!cols'] = Array(16).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws3, "4. Gráfico Auditorio");
 
-    // HOJA 5: GRÁFICO COMIDA
     const matrizComida = [];
     ordenMesas.forEach((m) => {
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
         for(let fila=0; fila<5; fila++) {
-            const o1 = (comida[`mesa_${m}_silla_${(fila * 2) + 1}`] || [])[0]; 
-            const o2 = (comida[`mesa_${m}_silla_${(fila * 2) + 2}`] || [])[0];
+            const o1 = (comida[`mesa_${m}_silla_${(fila * 2) + 1}`] || [])[0]; const o2 = (comida[`mesa_${m}_silla_${(fila * 2) + 2}`] || [])[0];
             matrizComida.push([
               o1 ? { v: `${o1.nombre}\n${o1.cargo}`, t: 's', s: getExcelStyle(o1.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }, 
               o2 ? { v: `${o2.nombre}\n${o2.cargo}`, t: 's', s: getExcelStyle(o2.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }
@@ -356,7 +375,6 @@ export default function App() {
     XLSX.writeFile(wb, "Sembrado_Invitados_Completo.xlsx");
   };
 
-  // --- 6. CARGAR EXCEL (NUEVOS INVITADOS) ---
   const cargarExcel = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -366,27 +384,22 @@ export default function App() {
         const data = new Uint8Array(evt.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
         const filasExcel = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-
         guardarEnHistorial(); 
-        
         const nuevosInvitados = filasExcel.map((fila, index) => {
-          const filaNormalizada = {};
-          Object.keys(fila).forEach(key => { filaNormalizada[key.toLowerCase().trim()] = fila[key]; });
-          return { id: `excel-${Date.now()}-${index}`, dependencia: filaNormalizada.dependencia || '', nombre: filaNormalizada.nombre || 'Sin Nombre', cargo: filaNormalizada.cargo || 'Sin Cargo', bloqueado_auditorio: false, bloqueado_comida: false };
+          const filaNorm = {};
+          Object.keys(fila).forEach(key => { filaNorm[key.toLowerCase().trim()] = fila[key]; });
+          return { id: `excel-${Date.now()}-${index}`, dependencia: filaNorm.dependencia || '', nombre: filaNorm.nombre || 'Sin Nombre', cargo: filaNorm.cargo || 'Sin Cargo', bloqueado_auditorio: false, bloqueado_comida: false };
         });
-
         const nuevoAuditorio = { ...auditorio, banca: [...auditorio.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_auditorio === b.bloqueado_auditorio ? 0 : a.bloqueado_auditorio ? 1 : -1)) };
         const nuevaComida = { ...comida, banca: [...comida.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_comida === b.bloqueado_comida ? 0 : a.bloqueado_comida ? 1 : -1)) };
-        
         setAuditorio(nuevoAuditorio); setComida(nuevaComida);
         syncToCloud(nuevoAuditorio, nuevaComida, null, null);
-        alert(`✅ Se añadieron ${nuevosInvitados.length} invitados a la banca.`); e.target.value = null; 
-      } catch (error) { alert("❌ Error al leer el Excel. Revisa el formato."); }
+        alert(`✅ Se añadieron ${nuevosInvitados.length} invitados.`); e.target.value = null; 
+      } catch (error) { alert("❌ Error al leer el Excel."); }
     };
     reader.readAsArrayBuffer(file);
   };
 
-  // --- 6.5 ACTUALIZADOR MASIVO DE TEXTOS ---
   const actualizarDesdeExcel = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -395,96 +408,61 @@ export default function App() {
       try {
         const data = new Uint8Array(evt.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
-        
         const sheetName = workbook.SheetNames.find(n => n.includes('Directorio')) || workbook.SheetNames[0];
         const filasExcel = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-
         const actualizaciones = {};
         filasExcel.forEach(fila => {
           const filaNorm = {};
           Object.keys(fila).forEach(k => { filaNorm[k.toUpperCase().trim()] = fila[k]; });
-          
           if (filaNorm['ID_NO_TOCAR']) {
-            actualizaciones[filaNorm['ID_NO_TOCAR']] = {
-              nombre: filaNorm['NOMBRE'] || '',
-              cargo: filaNorm['CARGO'] || '',
-              dependencia: filaNorm['DEPENDENCIA'] || ''
-            };
+            actualizaciones[filaNorm['ID_NO_TOCAR']] = { nombre: filaNorm['NOMBRE'] || '', cargo: filaNorm['CARGO'] || '', dependencia: filaNorm['DEPENDENCIA'] || '' };
           }
         });
-
-        if (Object.keys(actualizaciones).length === 0) {
-           alert("❌ No se encontró la columna 'ID_NO_TOCAR'. Asegúrate de usar la hoja '1. Directorio Editable'.");
-           return;
-        }
-
+        if (Object.keys(actualizaciones).length === 0) { alert("❌ No se encontró la columna 'ID_NO_TOCAR'."); return; }
         guardarEnHistorial();
-
-        const aplicarActualizaciones = (layout) => {
+        const aplicar = (layout) => {
           const nuevoLayout = { ...layout };
           Object.keys(nuevoLayout).forEach(key => {
-            nuevoLayout[key] = nuevoLayout[key].map(inv => {
-              if (actualizaciones[inv.id]) {
-                return { ...inv, ...actualizaciones[inv.id] };
-              }
-              return inv;
-            });
+            nuevoLayout[key] = nuevoLayout[key].map(inv => actualizaciones[inv.id] ? { ...inv, ...actualizaciones[inv.id] } : inv);
           });
           return nuevoLayout;
         };
-
-        const nuevoAuditorio = aplicarActualizaciones(auditorio);
-        const nuevaComida = aplicarActualizaciones(comida);
-
+        const nuevoAuditorio = aplicar(auditorio); const nuevaComida = aplicar(comida);
         setAuditorio(nuevoAuditorio); setComida(nuevaComida);
         syncToCloud(nuevoAuditorio, nuevaComida, null, null);
-        alert(`✅ ¡Textos actualizados! Se revisaron y corrigieron ${Object.keys(actualizaciones).length} registros sin perder sus lugares.`);
-      } catch (error) {
-        alert("❌ Error procesando las correcciones. Asegúrate de que subiste el Excel correcto.");
-      }
+        alert(`✅ ¡Textos actualizados! Se corrigieron ${Object.keys(actualizaciones).length} registros.`);
+      } catch (error) { alert("❌ Error procesando correcciones."); }
       e.target.value = null; 
     };
     reader.readAsArrayBuffer(file);
   };
 
-  // --- 7. EXPORTAR PDF ---
   const exportarPDF = async () => {
     const pdf = new jsPDF('l', 'mm', 'a4'); 
     const pdfWidth = pdf.internal.pageSize.getWidth(); const pdfHeightSheet = pdf.internal.pageSize.getHeight(); 
-
     const contAuditorio = document.getElementById('contenedor-auditorio'); const contComida = document.getElementById('contenedor-comida');
     let overAuditorio = ''; let overComida = '';
-    
     if (contAuditorio) { overAuditorio = contAuditorio.style.overflowX; contAuditorio.style.overflowX = 'visible'; }
     if (contComida) { overComida = contComida.style.overflowX; contComida.style.overflowX = 'visible'; }
-
     const bloquesACapturar = vistaActual === 'auditorio' ? ['auditorio-parte-1', 'auditorio-parte-2'] : ['comida-parte-1', 'comida-parte-2', 'comida-parte-3', 'comida-parte-4'];
     const fechaHoy = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
-
     try {
       for (let i = 0; i < bloquesACapturar.length; i++) {
         const element = document.getElementById(bloquesACapturar[i]);
         if (!element) continue;
-
         const zoomAnterior = element.style.zoom; const widthAnterior = element.style.width;
         element.style.zoom = 1; element.style.width = `${element.scrollWidth}px`; 
-
         const canvas = await html2canvas(element, { scale: 2, useCORS: true, scrollX: 0, scrollY: 0, width: element.scrollWidth, height: element.scrollHeight, windowWidth: element.scrollWidth, windowHeight: element.scrollHeight });
         element.style.zoom = zoomAnterior; element.style.width = widthAnterior;
-
         const imgData = canvas.toDataURL('image/png');
         if (i > 0) pdf.addPage();
-
         pdf.setFont('helvetica', 'bold'); pdf.setFontSize(14); pdf.setTextColor(15, 23, 42); pdf.text("Inauguración Filuni 2026", 10, 12);
-
         const margenX = 6; const topReserved = 18; const bottomReserved = 12; const maxImgHeight = pdfHeightSheet - topReserved - bottomReserved; 
         let imgWidth = pdfWidth - (margenX * 2); let imgHeight = (canvas.height * imgWidth) / canvas.width;
-        
         if (imgHeight > maxImgHeight) { imgHeight = maxImgHeight; imgWidth = (canvas.width * imgHeight) / canvas.height; }
         const xOffset = (pdfWidth - imgWidth) / 2; const yOffset = topReserved + (maxImgHeight - imgHeight) / 2;
-
         pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight);
-        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(100, 116, 139); pdf.text(`Fecha de generation: ${fechaHoy}`, pdfWidth - 10, pdfHeightSheet - 7, { align: 'right' });
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(100, 116, 139); pdf.text(`Fecha de generación: ${fechaHoy}`, pdfWidth - 10, pdfHeightSheet - 7, { align: 'right' });
       }
       pdf.save(`Protocolo-${vistaActual}.pdf`);
     } finally {
@@ -493,46 +471,103 @@ export default function App() {
     }
   };
 
-  // --- 8. ARRASTRAR Y SOLTAR MÁSTER ---
+  // --- 8. ARRASTRAR Y SOLTAR (CON SELECCIÓN MÚLTIPLE) ---
+  const onDragStart = (start) => {
+    // Si arrastramos una tarjeta que no está en los seleccionados, limpiamos la selección
+    if (!seleccionados.includes(start.draggableId) && start.type !== 'mesa') {
+      setSeleccionados([]);
+    }
+  };
+
   const onDragEnd = (result) => {
     if(!modoEdicion) return; 
-
-    const { source, destination, type } = result;
+    const { source, destination, type, draggableId } = result;
     if (!destination) return;
     
     guardarEnHistorial();
 
     if (type === 'mesa') {
-      const srcRow = parseInt(source.droppableId.split('_')[1]);
-      const destRow = parseInt(destination.droppableId.split('_')[1]);
-      const srcAbsIndex = (srcRow * 3) + source.index;
-      const destAbsIndex = (destRow * 3) + destination.index;
-
+      const srcRow = parseInt(source.droppableId.split('_')[1]); const destRow = parseInt(destination.droppableId.split('_')[1]);
+      const srcAbsIndex = (srcRow * 3) + source.index; const destAbsIndex = (destRow * 3) + destination.index;
       const nuevoOrden = Array.from(ordenMesas);
       const [mesaMovida] = nuevoOrden.splice(srcAbsIndex, 1);
       nuevoOrden.splice(destAbsIndex, 0, mesaMovida);
-
       setOrdenMesas(nuevoOrden); syncToCloud(null, null, null, nuevoOrden);
       return;
     }
 
-    const estadoActivo = vistaActual === 'auditorio' ? auditorio : comida;
+    const estadoActivo = vistaActual === 'auditorio' ? { ...auditorio } : { ...comida };
 
+    // --- LÓGICA DE SWAP MASIVO (MÚLTIPLES SELECCIONADOS) ---
+    if (seleccionados.length > 1 && seleccionados.includes(draggableId)) {
+        const seq = vistaActual === 'auditorio' ? getSecuenciaAuditorio() : getSecuenciaComida();
+        
+        if (destination.droppableId === 'banca') {
+            const movidos = [];
+            seleccionados.forEach(id => {
+                Object.keys(estadoActivo).forEach(key => {
+                    if (!estadoActivo[key]) return;
+                    const idx = estadoActivo[key].findIndex(inv => inv.id === id);
+                    if (idx !== -1) movidos.push(estadoActivo[key].splice(idx, 1)[0]);
+                });
+            });
+            estadoActivo.banca.push(...movidos);
+        } else {
+            const startIndex = seq.indexOf(destination.droppableId);
+            if (startIndex === -1) return; 
+            if (startIndex + seleccionados.length > seq.length) {
+                alert("No hay suficientes asientos en el salón a partir de este punto para acomodar al grupo.");
+                return;
+            }
+
+            const movidos = [];
+            seleccionados.forEach(id => {
+                Object.keys(estadoActivo).forEach(key => {
+                    if (!estadoActivo[key]) return;
+                    const idx = estadoActivo[key].findIndex(inv => inv.id === id);
+                    if (idx !== -1) movidos.push({ guest: estadoActivo[key].splice(idx, 1)[0], origen: key });
+                });
+            });
+
+            const desplazados = [];
+            movidos.forEach((movidoData, i) => {
+                const destDroppable = seq[startIndex + i];
+                if (estadoActivo[destDroppable].length > 0) {
+                    desplazados.push({ guest: estadoActivo[destDroppable].splice(0, 1)[0], newHome: movidoData.origen });
+                }
+                estadoActivo[destDroppable].push(movidoData.guest);
+            });
+
+            desplazados.forEach(desp => {
+                if(estadoActivo[desp.newHome]) {
+                    estadoActivo[desp.newHome].push(desp.guest);
+                } else {
+                    estadoActivo.banca.push(desp.guest);
+                }
+            });
+        }
+
+        const propBloqueo = vistaActual === 'auditorio' ? 'bloqueado_auditorio' : 'bloqueado_comida';
+        if (estadoActivo.banca) estadoActivo.banca.sort((a, b) => (a[propBloqueo] === b[propBloqueo] ? 0 : a[propBloqueo] ? 1 : -1));
+
+        if (vistaActual === 'auditorio') setAuditorio(estadoActivo); else setComida(estadoActivo);
+        syncToCloud(vistaActual === 'auditorio' ? estadoActivo : null, vistaActual === 'comida' ? estadoActivo : null, null, null);
+        setSeleccionados([]);
+        return;
+    }
+
+    // --- LÓGICA ORIGINAL (UN SOLO ELEMENTO) ---
     if (source.droppableId === destination.droppableId) {
       const nuevaLista = Array.from(estadoActivo[source.droppableId] || []);
       const [movido] = nuevaLista.splice(source.index, 1);
       nuevaLista.splice(destination.index, 0, movido);
-      
-      const nuevoEstado = { ...estadoActivo, [source.droppableId]: nuevaLista };
-      if (vistaActual === 'auditorio') setAuditorio(nuevoEstado); else setComida(nuevoEstado);
-      syncToCloud(vistaActual === 'auditorio' ? nuevoEstado : null, vistaActual === 'comida' ? nuevoEstado : null, null, null);
+      if (vistaActual === 'auditorio') setAuditorio({ ...estadoActivo, [source.droppableId]: nuevaLista }); else setComida({ ...estadoActivo, [source.droppableId]: nuevaLista });
+      syncToCloud(vistaActual === 'auditorio' ? { ...estadoActivo, [source.droppableId]: nuevaLista } : null, vistaActual === 'comida' ? { ...estadoActivo, [source.droppableId]: nuevaLista } : null, null, null);
       return;
     }
 
-    const nuevoEstado = { ...estadoActivo };
-    const origenLista = Array.from(nuevoEstado[source.droppableId] || []);
-    const destinoLista = Array.from(nuevoEstado[destination.droppableId] || []);
-
+    const origenLista = Array.from(estadoActivo[source.droppableId] || []);
+    const destinoLista = Array.from(estadoActivo[destination.droppableId] || []);
     const [invitadoMovido] = origenLista.splice(source.index, 1);
 
     if (destination.droppableId !== 'banca' && destinoLista.length >= 1) {
@@ -549,58 +584,38 @@ export default function App() {
         if (source.droppableId === 'banca') origenLista.sort((a, b) => (a[propBloqueo] === b[propBloqueo] ? 0 : a[propBloqueo] ? 1 : -1));
     }
 
-    nuevoEstado[source.droppableId] = origenLista;
-    nuevoEstado[destination.droppableId] = destinoLista;
-
-    if (vistaActual === 'auditorio') setAuditorio(nuevoEstado); else setComida(nuevoEstado);
-    syncToCloud(vistaActual === 'auditorio' ? nuevoEstado : null, vistaActual === 'comida' ? nuevoEstado : null, null, null);
+    estadoActivo[source.droppableId] = origenLista; estadoActivo[destination.droppableId] = destinoLista;
+    if (vistaActual === 'auditorio') setAuditorio(estadoActivo); else setComida(estadoActivo);
+    syncToCloud(vistaActual === 'auditorio' ? estadoActivo : null, vistaActual === 'comida' ? estadoActivo : null, null, null);
   };
 
   const layoutActivo = vistaActual === 'auditorio' ? auditorio : comida;
-
-  const ocupantesAuditorio = Object.keys(auditorio).reduce((acc, key) => {
-    if (key !== 'banca' && !key.includes('estrado')) return acc + (auditorio[key] || []).length;
-    return acc;
-  }, 0);
-
-  const ocupantesComida = Object.keys(comida).reduce((acc, key) => {
-    if (key !== 'banca') return acc + (comida[key] || []).length;
-    return acc;
-  }, 0);
+  const ocupantesAuditorio = Object.keys(auditorio).reduce((acc, key) => (key !== 'banca' && !key.includes('estrado')) ? acc + (auditorio[key] || []).length : acc, 0);
+  const ocupantesComida = Object.keys(comida).reduce((acc, key) => (key !== 'banca') ? acc + (comida[key] || []).length : acc, 0);
 
   const bloquesMesas = [];
-  for (let i = 0; i < ordenMesas.length; i += 3) {
-    bloquesMesas.push(ordenMesas.slice(i, i + 3));
-  }
+  for (let i = 0; i < ordenMesas.length; i += 3) { bloquesMesas.push(ordenMesas.slice(i, i + 3)); }
 
   const renderMesaLayout = (m, indexWithinRow) => (
     <Draggable key={`mesa_draggable_${m}`} draggableId={`mesa_draggable_${m}`} index={indexWithinRow} isDragDisabled={!modoEdicion}>
       {(provided, snapshot) => (
-        <div 
-          ref={provided.innerRef} 
-          {...provided.draggableProps} 
-          style={{ ...provided.draggableProps.style, width: '320px', backgroundColor: paletaMesas[m - 1].bg, border: `3px solid ${paletaMesas[m - 1].border}`, borderRadius: '8px', padding: '15px 20px 20px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: snapshot.isDragging ? '0 15px 25px rgba(0,0,0,0.3)' : '0 4px 6px -1px rgba(0,0,0,0.1)', flexShrink: 0, opacity: snapshot.isDragging ? 0.9 : 1 }}
-        >
+        <div ref={provided.innerRef} {...provided.draggableProps} style={{ ...provided.draggableProps.style, width: '320px', backgroundColor: paletaMesas[m - 1].bg, border: `3px solid ${paletaMesas[m - 1].border}`, borderRadius: '8px', padding: '15px 20px 20px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: snapshot.isDragging ? '0 15px 25px rgba(0,0,0,0.3)' : '0 4px 6px -1px rgba(0,0,0,0.1)', flexShrink: 0, opacity: snapshot.isDragging ? 0.9 : 1, position: 'relative' }}>
           {modoEdicion && (
             <div {...provided.dragHandleProps} title="Arrastrar mesa para reordenarla" style={{ width: '100%', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: snapshot.isDragging ? 'grabbing' : 'grab', marginBottom: '8px', color: paletaMesas[m - 1].border, opacity: 0.6 }}>
               <span style={{ fontSize: '18px', lineHeight: '0' }}>⣿</span>
             </div>
           )}
 
-          <div style={{ width: '100%', marginBottom: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <input 
-              type="text" 
-              readOnly={!modoEdicion}
-              value={nombresMesas[`mesa_${m}`] || ''} 
-              onChange={(e) => manejarEdicionNombreMesa(m, e.target.value)} 
-              onBlur={manejarBlurNombreMesa} 
-              style={{ width: '100%', height: '40px', lineHeight: '36px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '0 10px', borderRadius: '4px', border: modoEdicion ? '1px solid white' : 'none', backgroundColor: modoEdicion ? 'rgba(255,255,255,0.7)' : 'transparent', outline: 'none', boxSizing: 'border-box', fontFamily: 'sans-serif' }} 
-            />
+          <div style={{ width: '100%', marginBottom: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+            <input type="text" readOnly={!modoEdicion} value={nombresMesas[`mesa_${m}`] || ''} onChange={(e) => manejarEdicionNombreMesa(m, e.target.value)} onBlur={manejarBlurNombreMesa} style={{ flexGrow: 1, height: '40px', lineHeight: '36px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px', padding: '0 10px', borderRadius: '4px', border: modoEdicion ? '1px solid white' : 'none', backgroundColor: modoEdicion ? 'rgba(255,255,255,0.7)' : 'transparent', outline: 'none', boxSizing: 'border-box', fontFamily: 'sans-serif' }} />
+            {modoEdicion && (
+              <button onClick={() => toggleSeleccionGrupo(getIdsMesa(m))} title="Seleccionar a todos los de la mesa" style={{ padding: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>✓</button>
+            )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '100%' }}>
             {Array.from({ length: 10 }, (_, s) => {
               const ocupante = layoutActivo[`mesa_${m}_silla_${s+1}`] || [];
-              return <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} />
+              return <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} />
             })}
           </div>
         </div>
@@ -636,13 +651,11 @@ export default function App() {
         </div>
       )}
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        
-        {/* PANEL BANCA (SOLO VISIBLE EN MODO EDICIÓN Y SI NO ESTÁ EN PANTALLA COMPLETA) */}
+      <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        {/* PANEL BANCA */}
         <div style={{ width: '320px', flexShrink: 0, backgroundColor: 'white', padding: '15px', borderRight: '1px solid #cbd5e1', display: (modoEdicion && !modoPresentacion) ? 'flex' : 'none', flexDirection: 'column', zIndex: 10 }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            Panel de Edición
-            <span style={{ fontSize: '10px', backgroundColor: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '12px' }}>🟢 Abierto</span>
+            Panel de Edición <span style={{ fontSize: '10px', backgroundColor: '#dcfce7', color: '#16a34a', padding: '4px 8px', borderRadius: '12px' }}>🟢 Abierto</span>
           </h2>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px' }}>
@@ -676,7 +689,7 @@ export default function App() {
               <div {...provided.droppableProps} ref={provided.innerRef} style={{ flexGrow: 1, overflowY: 'auto', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '4px', minHeight: '100px' }}>
                 {(layoutActivo.banca || []).map((invitado, index) => {
                   const isBloqueado = vistaActual === 'auditorio' ? invitado.bloqueado_auditorio : invitado.bloqueado_comida;
-                  return <Tarjeta key={invitado.id} invitado={invitado} index={index} isBanca={true} isBloqueado={isBloqueado} onToggleLock={toggleBloqueoBanca} onDelete={eliminarInvitadoDeBanca} busqueda={busquedaBanca} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} />
+                  return <Tarjeta key={invitado.id} invitado={invitado} index={index} isBanca={true} isBloqueado={isBloqueado} onToggleLock={toggleBloqueoBanca} onDelete={eliminarInvitadoDeBanca} busqueda={busquedaBanca} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} />
                 })}
                 {provided.placeholder}
               </div>
@@ -687,28 +700,25 @@ export default function App() {
         {/* LIENZO PRINCIPAL */}
         <div style={{ flexGrow: 1, overflow: 'auto', padding: '20px', backgroundColor: '#e2e8f0', position: 'relative' }}>
           
-          {/* BARRA SUPERIOR FLOTANTE IZQUIERDA (BOTÓN VISTAS) */}
           <div style={{ position: 'fixed', top: '20px', left: (modoEdicion && !modoPresentacion) ? '350px' : '30px', zIndex: 50, transition: 'left 0.2s' }}>
-            <button 
-              onClick={() => setVistaActual(vistaActual === 'auditorio' ? 'comida' : 'auditorio')}
-              style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: '#3b82f6', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
-            >
+            <button onClick={() => setVistaActual(vistaActual === 'auditorio' ? 'comida' : 'auditorio')} style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: '#3b82f6', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}>
               👁️ Ver {vistaActual === 'auditorio' ? 'Comida' : 'Auditorio'}
             </button>
           </div>
 
-          {/* BARRA SUPERIOR FLOTANTE DERECHA MAESTRA */}
           <div style={{ position: 'fixed', top: '20px', right: '30px', zIndex: 50, display: 'flex', gap: '15px', alignItems: 'center' }}>
             
-            {/* BOTÓN DESPLEGABLE DESCARGAR (SOLO LECTURA) */}
+            {/* BADGE SELECCIONADOS */}
+            {modoEdicion && seleccionados.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#fef3c7', padding: '6px 15px', borderRadius: '8px', border: '1px solid #f59e0b', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+                <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#b45309' }}>{seleccionados.length} Seleccionados</span>
+                <button onClick={() => setSeleccionados([])} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', fontWeight: 'bold', fontSize: '14px', padding: 0 }} title="Limpiar selección">✖</button>
+              </div>
+            )}
+
             {!modoEdicion && (
               <div style={{ position: 'relative' }}>
-                <button 
-                  onClick={() => setMostrarMenuDescarga(!mostrarMenuDescarga)} 
-                  style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: '#6366f1', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}
-                >
-                  📥 Descargar ▼
-                </button>
+                <button onClick={() => setMostrarMenuDescarga(!mostrarMenuDescarga)} style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: '#6366f1', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>📥 Descargar ▼</button>
                 {mostrarMenuDescarga && (
                   <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '220px', zIndex: 100 }}>
                     <button onClick={() => { exportarExcel(); setMostrarMenuDescarga(false); }} style={{ padding: '12px 15px', border: 'none', backgroundColor: 'transparent', textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 'bold', color: '#16a34a' }}>📊 Exportar a Excel (5 Hojas)</button>
@@ -718,33 +728,18 @@ export default function App() {
               </div>
             )}
 
-            {/* BOTÓN PANTALLA COMPLETA (SOLO EN MODO EDICIÓN) */}
             {modoEdicion && (
-              <button 
-                onClick={() => setModoPresentacion(!modoPresentacion)}
-                title="Ocultar o Mostrar el Panel de Control Lateral"
-                style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: modoPresentacion ? '#f59e0b' : '#3b82f6', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
-              >
+              <button onClick={() => setModoPresentacion(!modoPresentacion)} title="Ocultar Panel de Control" style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: modoPresentacion ? '#f59e0b' : '#3b82f6', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}>
                 {modoPresentacion ? '🗗 Salir Pantalla Completa' : '🖥️ Pantalla Completa'}
               </button>
             )}
 
-            {/* BOTÓN ACTIVAR/DESACTIVAR EDICIÓN */}
-            <button 
-              onClick={() => { setModoEdicion(!modoEdicion); setMostrarMenuDescarga(false); if(modoEdicion) setModoPresentacion(false); }}
-              title={modoEdicion ? "Bloquear sembrado y ocultar panel" : "Habilitar panel de control y arrastre"}
-              style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: modoEdicion ? '#f59e0b' : '#10b981', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
-            >
+            <button onClick={() => { setModoEdicion(!modoEdicion); setMostrarMenuDescarga(false); if(modoEdicion){setModoPresentacion(false); setSeleccionados([]);} }} title={modoEdicion ? "Bloquear sembrado" : "Habilitar arrastre"} style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: modoEdicion ? '#f59e0b' : '#10b981', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}>
               {modoEdicion ? '🔒 Cerrar Edición' : '✏️ Editar'}
             </button>
 
             {modoEdicion && (
-              <button 
-                onClick={deshacerUltimaAccion} 
-                disabled={historial.length === 0} 
-                title={historial.length === 0 ? "Nada que deshacer" : "Deshacer último movimiento"}
-                style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: historial.length === 0 ? '#cbd5e1' : '#f43f5e', color: historial.length === 0 ? '#64748b' : 'white', fontWeight: 'bold', cursor: historial.length === 0 ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', transition: 'background-color 0.2s' }}
-              >
+              <button onClick={deshacerUltimaAccion} disabled={historial.length === 0} title={historial.length === 0 ? "Nada que deshacer" : "Deshacer último movimiento"} style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: historial.length === 0 ? '#cbd5e1' : '#f43f5e', color: historial.length === 0 ? '#64748b' : 'white', fontWeight: 'bold', cursor: historial.length === 0 ? 'default' : 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
                 ↩️ Deshacer
               </button>
             )}
@@ -759,21 +754,12 @@ export default function App() {
           </div>
 
           <div ref={pdfRef} style={{ backgroundColor: 'white', padding: '40px', borderRadius: '8px', minWidth: '1300px', minHeight: '100%', zoom: zoom }}>
-            
-            <h1 style={{ textAlign: 'center', marginBottom: '10px', fontSize: '28px', fontWeight: 'bold', color: '#0f172a' }}>
-              {vistaActual === 'auditorio' ? 'Inauguración Filuni 2026' : 'Comida Inaugural'}
-            </h1>
-            
+            <h1 style={{ textAlign: 'center', marginBottom: '10px', fontSize: '28px', fontWeight: 'bold', color: '#0f172a' }}>{vistaActual === 'auditorio' ? 'Inauguración Filuni 2026' : 'Comida Inaugural'}</h1>
             <div style={{ textAlign: 'center', marginBottom: '30px', color: '#475569', fontSize: '14px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', gap: '20px' }}>
-               {vistaActual === 'auditorio' && (
-                 <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '6px 12px', borderRadius: '20px' }}>👥 Asistentes Auditorio: {ocupantesAuditorio}</span>
-               )}
-               {vistaActual === 'comida' && (
-                 <span style={{ backgroundColor: '#fef3c7', color: '#b45309', padding: '6px 12px', borderRadius: '20px' }}>🍽️ Asistentes Comida: {ocupantesComida}</span>
-               )}
+               {vistaActual === 'auditorio' && (<span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '6px 12px', borderRadius: '20px' }}>👥 Asistentes Auditorio: {ocupantesAuditorio}</span>)}
+               {vistaActual === 'comida' && (<span style={{ backgroundColor: '#fef3c7', color: '#b45309', padding: '6px 12px', borderRadius: '20px' }}>🍽️ Asistentes Comida: {ocupantesComida}</span>)}
             </div>
 
-            {/* VISTA AUDITORIO */}
             {vistaActual === 'auditorio' && (
               <div id="contenedor-auditorio" style={{ width: '100%', overflowX: 'auto', paddingBottom: '20px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 'max-content', padding: '0 20px' }}>
@@ -781,21 +767,16 @@ export default function App() {
                   {/* HOJA 1 */}
                   <div id="auditorio-parte-1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', width: '100%', backgroundColor: 'white' }}>
                     <div style={{ backgroundColor: '#1e293b', padding: '20px 40px', borderRadius: '8px', border: '2px solid #0f172a', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
-                      <h3 style={{ color: 'white', textAlign: 'center', marginBottom: '20px', letterSpacing: '2px' }}>ESTRADO (Presidium)</h3>
+                      <h3 onClick={() => modoEdicion && toggleSeleccionGrupo(getIdsEstrado())} title={modoEdicion ? "Seleccionar todo el estrado" : ""} style={{ color: 'white', textAlign: 'center', marginBottom: '20px', letterSpacing: '2px', cursor: modoEdicion ? 'pointer' : 'default' }}>ESTRADO (Presidium)</h3>
                       <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-                        {Array.from({ length: 8 }, (_, i) => <Silla key={`estrado_silla_${i+1}`} id={`estrado_silla_${i+1}`} ocupante={layoutActivo[`estrado_silla_${i+1}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} />)}
+                        {Array.from({ length: 8 }, (_, i) => <Silla key={`estrado_silla_${i+1}`} id={`estrado_silla_${i+1}`} ocupante={layoutActivo[`estrado_silla_${i+1}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} />)}
                       </div>
                     </div>
                     
-                    {/* ENCABEZADO ASIENTOS - HOJA 1 */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: 'transparent', padding: '0 15px', borderRadius: '6px', border: '1px solid transparent', boxSizing: 'border-box' }}>
                       <div style={{ width: '60px', flexShrink: 0 }} /> 
                       <div style={{ display: 'flex', gap: '10px' }}>
-                        {Array.from({ length: 13 }, (_, sIndex) => (
-                          <div key={`num_guia_b1_${sIndex+1}`} style={{ width: '120px', minWidth: '120px', flexShrink: 0, textAlign: 'center', color: '#64748b', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', border: '2px solid transparent', boxSizing: 'border-box' }}>
-                            Asiento {sIndex + 1}
-                          </div>
-                        ))}
+                        {Array.from({ length: 13 }, (_, sIndex) => (<div key={`num_guia_b1_${sIndex+1}`} style={{ width: '120px', minWidth: '120px', flexShrink: 0, textAlign: 'center', color: '#64748b', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', border: '2px solid transparent', boxSizing: 'border-box' }}>Asiento {sIndex + 1}</div>))}
                       </div>
                     </div>
 
@@ -804,11 +785,15 @@ export default function App() {
                         const f = fIndex + 1;
                         return (
                           <div key={`fila_${f}`} style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0', height: '125px', boxSizing: 'border-box' }}>
-                            <strong style={{ width: '60px', textAlign: 'center', color: '#475569', fontSize: '14px', flexShrink: 0, marginTop: '35px' }}>Fila {f}</strong>
+                            <strong onClick={() => modoEdicion && toggleSeleccionGrupo(getIdsFila(f))} title={modoEdicion ? "Seleccionar toda la fila" : ""} style={{ width: '60px', textAlign: 'center', color: '#475569', fontSize: '14px', flexShrink: 0, marginTop: '35px', cursor: modoEdicion ? 'pointer' : 'default', textDecoration: modoEdicion ? 'underline' : 'none' }}>Fila {f}</strong>
                             <div style={{ display: 'flex', gap: '10px' }}>
                               {Array.from({ length: 13 }, (_, sIndex) => {
                                 const s = sIndex + 1;
-                                return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} />
+                                if (f === 5 && s === 6) return (<div key="tv_unam" style={{ position: 'relative', width: '380px', height: '95px', flexShrink: 0 }}><div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '240px', backgroundColor: '#1e293b', color: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', fontWeight: 'bold', fontSize: '18px', letterSpacing: '2px', zIndex: 9999, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)' }}>📺 TV UNAM</div></div>);
+                                if (f === 5 && (s === 7 || s === 8)) return null;
+                                if (f === 6 && s === 6) return <div key="tv_unam_spacer" style={{ width: '380px', height: '95px', flexShrink: 0 }} />;
+                                if (f === 6 && (s === 7 || s === 8)) return null;
+                                return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} />
                               })}
                             </div>
                           </div>
@@ -817,21 +802,14 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* PASILLO CENTRAL */}
                   <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '30px 0', height: '45px', backgroundColor: '#cbd5e1', borderRadius: '6px', border: '2px dashed #94a3b8' }}><span style={{ fontWeight: 'bold', letterSpacing: '12px', color: '#475569', fontSize: '16px' }}>P A S I L L O</span></div>
 
                   {/* HOJA 2 */}
                   <div id="auditorio-parte-2" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', alignItems: 'center', backgroundColor: 'white' }}>
-                    
-                    {/* ENCABEZADO ASIENTOS - HOJA 2 */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: 'transparent', padding: '0 15px', borderRadius: '6px', border: '1px solid transparent', boxSizing: 'border-box' }}>
                       <div style={{ width: '60px', flexShrink: 0 }} /> 
                       <div style={{ display: 'flex', gap: '10px' }}>
-                        {Array.from({ length: 13 }, (_, sIndex) => (
-                          <div key={`num_guia_b2_${sIndex+1}`} style={{ width: '120px', minWidth: '120px', flexShrink: 0, textAlign: 'center', color: '#64748b', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', border: '2px solid transparent', boxSizing: 'border-box' }}>
-                            Asiento {sIndex + 1}
-                          </div>
-                        ))}
+                        {Array.from({ length: 13 }, (_, sIndex) => (<div key={`num_guia_b2_${sIndex+1}`} style={{ width: '120px', minWidth: '120px', flexShrink: 0, textAlign: 'center', color: '#64748b', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', border: '2px solid transparent', boxSizing: 'border-box' }}>Asiento {sIndex + 1}</div>))}
                       </div>
                     </div>
 
@@ -839,7 +817,7 @@ export default function App() {
                       const f = fIndex + 7;
                       return (
                         <div key={`fila_${f}`} style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '6px', border: '1px solid #e2e8f0', height: '125px', boxSizing: 'border-box' }}>
-                          <strong style={{ width: '60px', textAlign: 'center', color: '#475569', fontSize: '14px', flexShrink: 0, marginTop: '35px' }}>Fila {f}</strong>
+                          <strong onClick={() => modoEdicion && toggleSeleccionGrupo(getIdsFila(f))} title={modoEdicion ? "Seleccionar toda la fila" : ""} style={{ width: '60px', textAlign: 'center', color: '#475569', fontSize: '14px', flexShrink: 0, marginTop: '35px', cursor: modoEdicion ? 'pointer' : 'default', textDecoration: modoEdicion ? 'underline' : 'none' }}>Fila {f}</strong>
                           <div style={{ display: 'flex', gap: '10px' }}>
                             {Array.from({ length: 13 }, (_, sIndex) => {
                               const s = sIndex + 1;
@@ -849,7 +827,7 @@ export default function App() {
                               if (f === 8 && (s === 7 || s === 8)) return null;
                               if (f >= 9 && f <= 16 && (s >= 6 && s <= 8)) return <div key={`pasillo_${f}_${s}`} style={{ width: '120px', height: '95px', flexShrink: 0 }} />;
                               
-                              return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} />
+                              return <Silla key={`fila_${f}_silla_${s}`} id={`fila_${f}_silla_${s}`} ocupante={layoutActivo[`fila_${f}_silla_${s}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} />
                             })}
                           </div>
                         </div>
@@ -860,27 +838,19 @@ export default function App() {
               </div>
             )}
 
-            {/* VISTA COMIDA */}
             {vistaActual === 'comida' && (
               <div id="contenedor-comida" style={{ width: '100%', overflowX: 'auto', paddingBottom: '20px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', alignItems: 'center', minWidth: 'max-content', padding: '0 20px' }}>
-                  
                   {bloquesMesas.map((bloque, indexFila) => (
                     <Droppable key={`mesas_fila_${indexFila}`} droppableId={`mesas_${indexFila}`} direction="horizontal" type="mesa" isDropDisabled={!modoEdicion}>
-                      {(provided, snapshot) => (
-                        <div 
-                           id={`comida-parte-${indexFila + 1}`}
-                           ref={provided.innerRef} 
-                           {...provided.droppableProps} 
-                           style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: '40px', padding: '20px', backgroundColor: snapshot.isDraggingOver ? '#f8fafc' : 'white', borderRadius: '8px', minHeight: '350px', minWidth: '1100px', transition: 'background-color 0.2s' }}
-                        >
+                      {(provided) => (
+                        <div id={`comida-parte-${indexFila + 1}`} ref={provided.innerRef} {...provided.droppableProps} style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: '40px', padding: '20px', backgroundColor: 'white', borderRadius: '8px', minHeight: '350px', minWidth: '1100px' }}>
                            {bloque.map((m, index) => renderMesaLayout(m, index))}
                            {provided.placeholder}
                         </div>
                       )}
                     </Droppable>
                   ))}
-
                 </div>
               </div>
             )}
@@ -892,7 +862,7 @@ export default function App() {
 }
 
 // --- 9. COMPONENTES REFINADOS ---
-function Silla({ id, ocupante, vista, busqueda, onEdit, modoEdicion }) {
+function Silla({ id, ocupante, vista, busqueda, onEdit, modoEdicion, seleccionados, toggleSeleccion }) {
   const isAuditorio = vista === 'auditorio'; const width = isAuditorio ? '120px' : '100%'; const minWidth = isAuditorio ? '120px' : '85px'; const height = isAuditorio ? '95px' : '75px'; const flexShrink = isAuditorio ? 0 : 1; const arrOcupante = Array.isArray(ocupante) ? ocupante : [];
   const estaOcupada = arrOcupante.length >= 1;
 
@@ -912,7 +882,7 @@ function Silla({ id, ocupante, vista, busqueda, onEdit, modoEdicion }) {
             {!estaOcupada && <span style={{ fontSize: '10px', color: snapshot.isDraggingOver ? '#3b82f6' : '#94a3b8', fontWeight: 'bold' }}>{id.includes('silla') ? id.split('_').pop() : 'Silla'}</span>}
             {arrOcupante.map((invitado, index) => {
               const isBloq = vista === 'auditorio' ? invitado.bloqueado_auditorio : invitado.bloqueado_comida;
-              return <Tarjeta key={invitado.id} invitado={invitado} index={index} enSilla={true} isBloqueado={isBloq} busqueda={busqueda} onEdit={onEdit} modoEdicion={modoEdicion} />
+              return <Tarjeta key={invitado.id} invitado={invitado} index={index} enSilla={true} isBloqueado={isBloq} busqueda={busqueda} onEdit={onEdit} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} />
             })}
             <div style={{ display: 'none' }}>{provided.placeholder}</div>
           </div>
@@ -922,20 +892,38 @@ function Silla({ id, ocupante, vista, busqueda, onEdit, modoEdicion }) {
   );
 }
 
-function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock, onDelete, busqueda, onEdit, modoEdicion }) {
+function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock, onDelete, busqueda, onEdit, modoEdicion, seleccionados, toggleSeleccion }) {
   const colorBorde = getColorDependencia(invitado.dependencia); const textoBusqueda = busqueda ? busqueda.toLowerCase() : '';
   const coincideBusqueda = textoBusqueda !== '' && (invitado.nombre.toLowerCase().includes(textoBusqueda) || invitado.cargo.toLowerCase().includes(textoBusqueda) || invitado.dependencia.toLowerCase().includes(textoBusqueda));
   
+  const isSelected = seleccionados?.includes(invitado.id);
   const opacity = (textoBusqueda !== '' && !coincideBusqueda) ? 0.2 : (isBloqueado ? 0.5 : 1); 
-  const bgCard = isBloqueado ? '#e2e8f0' : 'white';
-  const glow = coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 2px 4px rgba(0,0,0,0.1)'; 
-  const escala = coincideBusqueda ? 'scale(1.02)' : 'scale(1)';
+  const bgCard = isBloqueado ? '#e2e8f0' : (isSelected ? '#e0f2fe' : 'white');
+  const glow = isSelected ? `0 0 0 2px #0ea5e9, ${coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 4px 6px rgba(0,0,0,0.1)'}` : (coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 2px 4px rgba(0,0,0,0.1)'); 
+  const escala = coincideBusqueda || isSelected ? 'scale(1.02)' : 'scale(1)';
 
   return (
     <Draggable draggableId={invitado.id} index={index} isDragDisabled={!modoEdicion || (isBanca && isBloqueado)}>
-      {(provided) => (
-        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} onDoubleClick={() => modoEdicion && onEdit(invitado)} title={modoEdicion ? "Doble clic para editar" : ""} style={{ userSelect: 'none', padding: '6px', backgroundColor: bgCard, border: '1px solid #cbd5e1', borderTop: `4px solid ${colorBorde}`, borderRadius: '4px', boxShadow: glow, transform: provided.draggableProps.style?.transform || escala, width: enSilla ? '100%' : '100%', height: enSilla ? '100%' : 'auto', marginBottom: enSilla ? '0' : '10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box', position: 'relative', transition: 'box-shadow 0.3s, opacity 0.3s', opacity, ...provided.draggableProps.style }}>
+      {(provided, snapshot) => (
+        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} onDoubleClick={() => modoEdicion && onEdit(invitado)} title={modoEdicion ? "Doble clic para editar" : ""} style={{ userSelect: 'none', padding: '6px', backgroundColor: bgCard, border: '1px solid #cbd5e1', borderTop: `4px solid ${colorBorde}`, borderRadius: '4px', boxShadow: snapshot.isDragging ? '0 10px 20px rgba(0,0,0,0.2)' : glow, transform: provided.draggableProps.style?.transform || escala, width: enSilla ? '100%' : '100%', height: enSilla ? '100%' : 'auto', marginBottom: enSilla ? '0' : '10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box', position: 'relative', transition: 'box-shadow 0.3s, opacity 0.3s', opacity, zIndex: snapshot.isDragging ? 999 : 1, ...provided.draggableProps.style }}>
           
+          {snapshot.isDragging && isSelected && seleccionados.length > 1 && (
+             <div style={{ position: 'absolute', top: -10, right: -10, backgroundColor: '#ef4444', color: 'white', borderRadius: '50%', padding: '4px 8px', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+               +{seleccionados.length - 1}
+             </div>
+          )}
+
+          {modoEdicion && (
+            <input 
+              type="checkbox" 
+              checked={isSelected}
+              onChange={() => toggleSeleccion(invitado.id)}
+              onPointerDown={(e) => e.stopPropagation()} 
+              title="Seleccionar invitado para arrastre masivo"
+              style={{ position: 'absolute', bottom: '4px', right: '4px', cursor: 'pointer', transform: 'scale(1.2)' }}
+            />
+          )}
+
           {isBanca && modoEdicion && (
             <>
               <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onToggleLock(invitado.id)} title={isBloqueado ? "Desbloquear" : "Bloquear (mandar al final de la lista)"} style={{ position: 'absolute', top: '-6px', left: '-6px', width: '18px', height: '18px', backgroundColor: isBloqueado ? '#8b5cf6' : '#94a3b8', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >{isBloqueado ? '🔓' : '🔒'}</button>
