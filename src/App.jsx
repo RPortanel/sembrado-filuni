@@ -173,16 +173,20 @@ export default function App() {
     }
   };
 
+  // NUEVA LÓGICA DE CONFIRMACIÓN INDEPENDIENTE
   const toggleConfirmacion = (id) => {
     if (!modoEdicion) return;
     guardarEnHistorial();
+    const propiedadConfirmacion = vistaActual === 'auditorio' ? 'confirmado_auditorio' : 'confirmado_comida';
+    
     const actualizarLayout = (layout) => {
       const nuevoLayout = { ...layout };
       Object.keys(nuevoLayout).forEach(key => {
-        nuevoLayout[key] = nuevoLayout[key].map(inv => inv.id === id ? { ...inv, confirmado: !inv.confirmado } : inv);
+        nuevoLayout[key] = nuevoLayout[key].map(inv => inv.id === id ? { ...inv, [propiedadConfirmacion]: !inv[propiedadConfirmacion] } : inv);
       });
       return nuevoLayout;
     };
+    
     const nuevoAuditorio = actualizarLayout(auditorio);
     const nuevaComida = actualizarLayout(comida);
     setAuditorio(nuevoAuditorio); setComida(nuevaComida);
@@ -316,22 +320,25 @@ export default function App() {
     const wb = XLSX.utils.book_new();
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 
+    // Ahora hay dos columnas de confirmación
     const directorio = obtenerTodosLosInvitados().map(inv => ({
-      'ID_NO_TOCAR': inv.id, 'Dependencia': inv.dependencia, 'Nombre': inv.nombre, 'Cargo': inv.cargo, 'Confirmado': inv.confirmado ? 'SI' : 'NO'
+      'ID_NO_TOCAR': inv.id, 'Dependencia': inv.dependencia, 'Nombre': inv.nombre, 'Cargo': inv.cargo, 
+      'Conf_Inauguracion': inv.confirmado_auditorio ? 'SI' : 'NO',
+      'Conf_Comida': inv.confirmado_comida ? 'SI' : 'NO'
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(directorio), "1. Directorio Editable");
 
     const datosAuditorio = [];
     for (let i = 1; i <= 8; i++) {
       const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
-      datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado': ocupante?.confirmado ? 'SI' : '' });
+      datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado_Inauguracion': ocupante?.confirmado_auditorio ? 'SI' : '' });
     }
     for (let f = 1; f <= 14; f++) {
       for (let s = 1; s <= 13; s++) {
         if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) continue;
         if (f >= 9 && f <= 14 && (s >= 6 && s <= 8)) continue;
         const ocupante = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
-        datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado': ocupante?.confirmado ? 'SI' : '' });
+        datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado_Inauguracion': ocupante?.confirmado_auditorio ? 'SI' : '' });
       }
     }
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosAuditorio), "2. Lista Auditorio");
@@ -340,7 +347,7 @@ export default function App() {
     ordenMesas.forEach(m => {
       for(let s=1; s<=10; s++) {
         const ocupante = (comida[`mesa_${m}_silla_${s}`] || [])[0];
-        datosComida.push({ 'Mesa': nombresMesas[`mesa_${m}`], 'Asiento': `Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado': ocupante?.confirmado ? 'SI' : '' });
+        datosComida.push({ 'Mesa': nombresMesas[`mesa_${m}`], 'Asiento': `Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado_Comida': ocupante?.confirmado_comida ? 'SI' : '' });
       }
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosComida), "3. Lista Comida");
@@ -350,7 +357,7 @@ export default function App() {
     const filaEstrado = [];
     for(let i=1; i<=8; i++) {
         const oc = (auditorio[`estrado_silla_${i}`] || [])[0];
-        filaEstrado.push(oc ? { v: `${oc.confirmado ? '✅ ' : ''}${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
+        filaEstrado.push(oc ? { v: `${oc.confirmado_auditorio ? '✅ ' : ''}${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
     }
     matrizAuditorio.push(filaEstrado); matrizAuditorio.push([]); 
     for(let f=1; f <= 14; f++) {
@@ -367,7 +374,7 @@ export default function App() {
                  continue; 
              }
              const oc = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
-             filaAsientos.push(oc ? { v: `${oc.confirmado ? '✅ ' : ''}${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
+             filaAsientos.push(oc ? { v: `${oc.confirmado_auditorio ? '✅ ' : ''}${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
         }
         matrizAuditorio.push(filaAsientos);
         if (f === 6) { matrizAuditorio.push([]); matrizAuditorio.push(["", "", "", "", "", { v: "============= P A S I L L O =============", t: 's', s: { font: { bold: true, color: { rgb: "475569" } }, alignment: { horizontal: 'center' } } }]); }
@@ -382,8 +389,8 @@ export default function App() {
             const o1 = (comida[`mesa_${m}_silla_${(fila * 2) + 1}`] || [])[0]; 
             const o2 = (comida[`mesa_${m}_silla_${(fila * 2) + 2}`] || [])[0];
             matrizComida.push([
-              o1 ? { v: `${o1.confirmado ? '✅ ' : ''}${o1.nombre}\n${o1.cargo}`, t: 's', s: getExcelStyle(o1.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }, 
-              o2 ? { v: `${o2.confirmado ? '✅ ' : ''}${o2.nombre}\n${o2.cargo}`, t: 's', s: getExcelStyle(o2.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }
+              o1 ? { v: `${o1.confirmado_comida ? '✅ ' : ''}${o1.nombre}\n${o1.cargo}`, t: 's', s: getExcelStyle(o1.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }, 
+              o2 ? { v: `${o2.confirmado_comida ? '✅ ' : ''}${o2.nombre}\n${o2.cargo}`, t: 's', s: getExcelStyle(o2.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }
             ]);
         }
         matrizComida.push([]);
@@ -406,7 +413,7 @@ export default function App() {
         const nuevosInvitados = filasExcel.map((fila, index) => {
           const filaNorm = {};
           Object.keys(fila).forEach(key => { filaNorm[key.toLowerCase().trim()] = fila[key]; });
-          return { id: `excel-${Date.now()}-${index}`, dependencia: filaNorm.dependencia || '', nombre: filaNorm.nombre || 'Sin Nombre', cargo: filaNorm.cargo || 'Sin Cargo', confirmado: false, bloqueado_auditorio: false, bloqueado_comida: false };
+          return { id: `excel-${Date.now()}-${index}`, dependencia: filaNorm.dependencia || '', nombre: filaNorm.nombre || 'Sin Nombre', cargo: filaNorm.cargo || 'Sin Cargo', confirmado_auditorio: false, confirmado_comida: false, bloqueado_auditorio: false, bloqueado_comida: false };
         });
         const nuevoAuditorio = { ...auditorio, banca: [...auditorio.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_auditorio === b.bloqueado_auditorio ? 0 : a.bloqueado_auditorio ? 1 : -1)) };
         const nuevaComida = { ...comida, banca: [...comida.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_comida === b.bloqueado_comida ? 0 : a.bloqueado_comida ? 1 : -1)) };
@@ -433,11 +440,14 @@ export default function App() {
           const filaNorm = {};
           Object.keys(fila).forEach(k => { filaNorm[k.toUpperCase().trim()] = fila[k]; });
           if (filaNorm['ID_NO_TOCAR']) {
+            const valAud = filaNorm['CONF_INAUGURACION'] || filaNorm['CONF_INAUGURACIÓN'];
+            const valComida = filaNorm['CONF_COMIDA'];
             actualizaciones[filaNorm['ID_NO_TOCAR']] = { 
               nombre: filaNorm['NOMBRE'] || '', 
               cargo: filaNorm['CARGO'] || '', 
               dependencia: filaNorm['DEPENDENCIA'] || '',
-              confirmado: filaNorm['CONFIRMADO'] && (filaNorm['CONFIRMADO'].toString().toUpperCase() === 'SI' || filaNorm['CONFIRMADO'].toString().toUpperCase() === 'SÍ')
+              confirmado_auditorio: valAud && (valAud.toString().toUpperCase() === 'SI' || valAud.toString().toUpperCase() === 'SÍ'),
+              confirmado_comida: valComida && (valComida.toString().toUpperCase() === 'SI' || valComida.toString().toUpperCase() === 'SÍ')
             };
           }
         });
@@ -668,10 +678,18 @@ export default function App() {
               <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Dependencia (Color)</label>
               <input type="text" value={invitadoEditando.dependencia} onChange={(e) => setInvitadoEditando({...invitadoEditando, dependencia: e.target.value})} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none' }} placeholder="Ej: UNAM, UV, Externo, DGPyFE, Rectores" />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
-              <input type="checkbox" id="checkConfirmado" checked={invitadoEditando.confirmado || false} onChange={(e) => setInvitadoEditando({...invitadoEditando, confirmado: e.target.checked})} style={{ width: '18px', height: '18px', cursor: 'pointer' }}/>
-              <label htmlFor="checkConfirmado" style={{ fontSize: '14px', fontWeight: 'bold', color: '#16a34a', cursor: 'pointer' }}>✅ Asistencia Confirmada</label>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '5px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <input type="checkbox" id="checkConfAud" checked={invitadoEditando.confirmado_auditorio || false} onChange={(e) => setInvitadoEditando({...invitadoEditando, confirmado_auditorio: e.target.checked})} style={{ width: '18px', height: '18px', cursor: 'pointer' }}/>
+                <label htmlFor="checkConfAud" style={{ fontSize: '14px', fontWeight: 'bold', color: '#16a34a', cursor: 'pointer' }}>✅ Confirmado a Inauguración</label>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <input type="checkbox" id="checkConfComida" checked={invitadoEditando.confirmado_comida || false} onChange={(e) => setInvitadoEditando({...invitadoEditando, confirmado_comida: e.target.checked})} style={{ width: '18px', height: '18px', cursor: 'pointer' }}/>
+                <label htmlFor="checkConfComida" style={{ fontSize: '14px', fontWeight: 'bold', color: '#16a34a', cursor: 'pointer' }}>✅ Confirmado a Comida</label>
+              </div>
             </div>
+
             <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
               <button onClick={() => guardarEdicion(invitadoEditando)} style={{ flex: 1, backgroundColor: '#3b82f6', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>Guardar Cambios</button>
               <button onClick={() => setInvitadoEditando(null)} style={{ flex: 1, backgroundColor: '#cbd5e1', color: '#475569', padding: '10px', borderRadius: '4px', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>Cancelar</button>
@@ -718,7 +736,7 @@ export default function App() {
               <div {...provided.droppableProps} ref={provided.innerRef} style={{ flexGrow: 1, overflowY: 'auto', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '4px', minHeight: '100px' }}>
                 {(layoutActivo.banca || []).map((invitado, index) => {
                   const isBloqueado = vistaActual === 'auditorio' ? invitado.bloqueado_auditorio : invitado.bloqueado_comida;
-                  return <Tarjeta key={invitado.id} invitado={invitado} index={index} isBanca={true} isBloqueado={isBloqueado} onToggleLock={toggleBloqueoBanca} onDelete={eliminarInvitadoDeBanca} busqueda={busquedaBanca} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} toggleConfirmacion={toggleConfirmacion} />
+                  return <Tarjeta key={invitado.id} invitado={invitado} index={index} isBanca={true} isBloqueado={isBloqueado} onToggleLock={toggleBloqueoBanca} onDelete={eliminarInvitadoDeBanca} busqueda={busquedaBanca} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} toggleConfirmacion={toggleConfirmacion} vista={vistaActual} />
                 })}
                 {provided.placeholder}
               </div>
@@ -906,7 +924,7 @@ function Silla({ id, ocupante, vista, busqueda, onEdit, modoEdicion, seleccionad
             {!estaOcupada && <span style={{ fontSize: '10px', color: snapshot.isDraggingOver ? '#3b82f6' : '#94a3b8', fontWeight: 'bold' }}>{id.includes('silla') ? id.split('_').pop() : 'Silla'}</span>}
             {arrOcupante.map((invitado, index) => {
               const isBloq = vista === 'auditorio' ? invitado.bloqueado_auditorio : invitado.bloqueado_comida;
-              return <Tarjeta key={invitado.id} invitado={invitado} index={index} enSilla={true} isBloqueado={isBloq} busqueda={busqueda} onEdit={onEdit} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} toggleConfirmacion={toggleConfirmacion} />
+              return <Tarjeta key={invitado.id} invitado={invitado} index={index} enSilla={true} isBloqueado={isBloq} busqueda={busqueda} onEdit={onEdit} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} toggleConfirmacion={toggleConfirmacion} vista={vista} />
             })}
             <div style={{ display: 'none' }}>{provided.placeholder}</div>
           </div>
@@ -916,15 +934,18 @@ function Silla({ id, ocupante, vista, busqueda, onEdit, modoEdicion, seleccionad
   );
 }
 
-function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock, onDelete, busqueda, onEdit, modoEdicion, seleccionados, toggleSeleccion, toggleConfirmacion }) {
+function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock, onDelete, busqueda, onEdit, modoEdicion, seleccionados, toggleSeleccion, toggleConfirmacion, vista }) {
   const colorBorde = getColorDependencia(invitado.dependencia); const textoBusqueda = busqueda ? busqueda.toLowerCase() : '';
   const coincideBusqueda = textoBusqueda !== '' && (invitado.nombre.toLowerCase().includes(textoBusqueda) || invitado.cargo.toLowerCase().includes(textoBusqueda) || invitado.dependencia.toLowerCase().includes(textoBusqueda));
   
   const isSelected = seleccionados?.includes(invitado.id);
   const opacity = (textoBusqueda !== '' && !coincideBusqueda) ? 0.2 : (isBloqueado ? 0.5 : 1); 
   
-  // Color de fondo: Gris si está bloqueado, Azul claro si está seleccionado, Verde tenue si está confirmado, Blanco por defecto.
-  const bgCard = isBloqueado ? '#e2e8f0' : (isSelected ? '#e0f2fe' : (invitado.confirmado ? '#dcfce7' : 'white'));
+  // VERIFICADOR INDEPENDIENTE DE VISTA
+  const isConfirmado = vista === 'auditorio' ? invitado.confirmado_auditorio : invitado.confirmado_comida;
+
+  // Fondo dinámico
+  const bgCard = isBloqueado ? '#e2e8f0' : (isSelected ? '#e0f2fe' : (isConfirmado ? '#dcfce7' : 'white'));
   
   const glow = isSelected ? `0 0 0 2px #0ea5e9, ${coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 4px 6px rgba(0,0,0,0.1)'}` : (coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 2px 4px rgba(0,0,0,0.1)'); 
   const escala = coincideBusqueda || isSelected ? 'scale(1.02)' : 'scale(1)';
@@ -952,12 +973,12 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
                 style={{ position: 'absolute', bottom: '4px', right: '4px', cursor: 'pointer', transform: 'scale(1.2)' }}
               />
 
-              {/* Botón rápido superior derecho para Confirmar Asistencia */}
+              {/* Botón rápido superior derecho para Confirmar Asistencia en LA VISTA ACTUAL */}
               <button 
                 onPointerDown={(e) => e.stopPropagation()} 
                 onClick={() => toggleConfirmacion(invitado.id)} 
-                title={invitado.confirmado ? "Quitar confirmación" : "Marcar asistencia confirmada"} 
-                style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', backgroundColor: invitado.confirmado ? '#16a34a' : '#f8fafc', color: invitado.confirmado ? 'white' : '#94a3b8', border: '1px solid #cbd5e1', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} 
+                title={isConfirmado ? "Quitar confirmación" : "Marcar asistencia confirmada"} 
+                style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', backgroundColor: isConfirmado ? '#16a34a' : '#f8fafc', color: isConfirmado ? 'white' : '#94a3b8', border: '1px solid #cbd5e1', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} 
               >
                 ✓
               </button>
@@ -966,15 +987,14 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
 
           {isBanca && modoEdicion && (
             <>
-              {/* En la banca, el botón de Bloquear va a la izquierda y Eliminar a la derecha. Movimos Confirmar al lado del Lock. */}
-              <button onPointerDown={(e) => e.stopPropagation()} onClick={() => toggleConfirmacion(invitado.id)} title={invitado.confirmado ? "Quitar confirmación" : "Marcar asistencia confirmada"} style={{ position: 'absolute', top: '-6px', right: '14px', width: '18px', height: '18px', backgroundColor: invitado.confirmado ? '#16a34a' : '#f8fafc', color: invitado.confirmado ? 'white' : '#94a3b8', border: '1px solid #cbd5e1', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >✓</button>
+              <button onPointerDown={(e) => e.stopPropagation()} onClick={() => toggleConfirmacion(invitado.id)} title={isConfirmado ? "Quitar confirmación" : "Marcar asistencia confirmada"} style={{ position: 'absolute', top: '-6px', right: '14px', width: '18px', height: '18px', backgroundColor: isConfirmado ? '#16a34a' : '#f8fafc', color: isConfirmado ? 'white' : '#94a3b8', border: '1px solid #cbd5e1', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >✓</button>
               <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onToggleLock(invitado.id)} title={isBloqueado ? "Desbloquear" : "Bloquear (mandar al final de la lista)"} style={{ position: 'absolute', top: '-6px', left: '-6px', width: '18px', height: '18px', backgroundColor: isBloqueado ? '#8b5cf6' : '#94a3b8', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >{isBloqueado ? '🔓' : '🔒'}</button>
               <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onDelete(invitado.id)} title="Eliminar del evento" style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} >×</button>
             </>
           )}
 
           <div style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: '1.2', marginBottom: '3px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical' }}>
-            {invitado.confirmado && <span style={{ color: '#16a34a', marginRight: '4px' }}>✓</span>}
+            {isConfirmado && <span style={{ color: '#16a34a', marginRight: '4px' }}>✓</span>}
             {invitado.nombre}
           </div>
           <div style={{ fontSize: '9px', color: '#64748b', lineHeight: '1.15', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: '3', WebkitBoxOrient: 'vertical', width: '100%' }}>{invitado.cargo}</div>
