@@ -24,7 +24,9 @@ const initAuditorio = () => {
 const initComida = () => {
   const layout = { banca: [] };
   for (let m = 1; m <= 12; m++) { 
-    for (let s = 1; s <= 10; s++) layout[`mesa_${m}_silla_${s}`] = [];
+    // NUEVO: La mesa 1 tiene 12 lugares, el resto 10.
+    const numSillas = m === 1 ? 12 : 10;
+    for (let s = 1; s <= numSillas; s++) layout[`mesa_${m}_silla_${s}`] = [];
   }
   return layout;
 };
@@ -101,8 +103,9 @@ export default function App() {
     const unsub = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if(data.auditorio) setAuditorio(data.auditorio);
-        if(data.comida) setComida(data.comida);
+        // Blindaje: Mezclamos el inicial con el de Firebase para inyectar sillas nuevas (ej. 11 y 12) si no existían
+        if(data.auditorio) setAuditorio({ ...initAuditorio(), ...data.auditorio });
+        if(data.comida) setComida({ ...initComida(), ...data.comida });
         if(data.nombresMesas) setNombresMesas(data.nombresMesas);
         if(data.ordenMesas && Array.isArray(data.ordenMesas) && data.ordenMesas.length > 0) {
           setOrdenMesas(data.ordenMesas);
@@ -173,7 +176,6 @@ export default function App() {
     }
   };
 
-  // NUEVA LÓGICA DE CONFIRMACIÓN INDEPENDIENTE
   const toggleConfirmacion = (id) => {
     if (!modoEdicion) return;
     guardarEnHistorial();
@@ -209,7 +211,8 @@ export default function App() {
   };
   const getIdsMesa = (m) => {
     const ids = [];
-    for (let s = 1; s <= 10; s++) {
+    const numSillas = m === 1 ? 12 : 10;
+    for (let s = 1; s <= numSillas; s++) {
       const oc = comida[`mesa_${m}_silla_${s}`]; if (oc && oc.length > 0) ids.push(oc[0].id);
     }
     return ids;
@@ -231,7 +234,8 @@ export default function App() {
   const getSecuenciaComida = () => {
     const seq = [];
     ordenMesas.forEach(m => {
-      for (let s = 1; s <= 10; s++) seq.push(`mesa_${m}_silla_${s}`);
+      const numSillas = m === 1 ? 12 : 10;
+      for (let s = 1; s <= numSillas; s++) seq.push(`mesa_${m}_silla_${s}`);
     });
     return seq;
   };
@@ -320,7 +324,6 @@ export default function App() {
     const wb = XLSX.utils.book_new();
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
 
-    // Ahora hay dos columnas de confirmación
     const directorio = obtenerTodosLosInvitados().map(inv => ({
       'ID_NO_TOCAR': inv.id, 'Dependencia': inv.dependencia, 'Nombre': inv.nombre, 'Cargo': inv.cargo, 
       'Conf_Inauguracion': inv.confirmado_auditorio ? 'SI' : 'NO',
@@ -345,7 +348,8 @@ export default function App() {
 
     const datosComida = [];
     ordenMesas.forEach(m => {
-      for(let s=1; s<=10; s++) {
+      const limiteSillas = m === 1 ? 12 : 10;
+      for(let s=1; s<=limiteSillas; s++) {
         const ocupante = (comida[`mesa_${m}_silla_${s}`] || [])[0];
         datosComida.push({ 'Mesa': nombresMesas[`mesa_${m}`], 'Asiento': `Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado_Comida': ocupante?.confirmado_comida ? 'SI' : '' });
       }
@@ -385,7 +389,8 @@ export default function App() {
     const matrizComida = [];
     ordenMesas.forEach((m) => {
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
-        for(let fila=0; fila<5; fila++) {
+        const filasMesa = m === 1 ? 6 : 5; // 12 sillas ocupan 6 filas de 2
+        for(let fila=0; fila<filasMesa; fila++) {
             const o1 = (comida[`mesa_${m}_silla_${(fila * 2) + 1}`] || [])[0]; 
             const o2 = (comida[`mesa_${m}_silla_${(fila * 2) + 2}`] || [])[0];
             matrizComida.push([
@@ -629,6 +634,7 @@ export default function App() {
   const renderMesaLayout = (m, indexWithinRow) => {
     const indiceColor = (m > 0 && m <= 12) ? m - 1 : 0;
     const coloresMesa = paletaMesas[indiceColor] || { bg: '#ffffff', border: '#cbd5e1' };
+    const numSillas = m === 1 ? 12 : 10; // 12 sillas para la Mesa 1
 
     return (
       <Draggable key={`mesa_draggable_${m}`} draggableId={`mesa_draggable_${m}`} index={indexWithinRow} isDragDisabled={!modoEdicion}>
@@ -647,7 +653,7 @@ export default function App() {
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '100%' }}>
-              {Array.from({ length: 10 }, (_, s) => {
+              {Array.from({ length: numSillas }, (_, s) => {
                 const ocupante = layoutActivo[`mesa_${m}_silla_${s+1}`] || [];
                 return <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} toggleConfirmacion={toggleConfirmacion} />
               })}
@@ -963,7 +969,6 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
 
           {modoEdicion && (
             <>
-              {/* Checkbox inferior derecho para Selección Múltiple */}
               <input 
                 type="checkbox" 
                 checked={isSelected}
@@ -973,7 +978,6 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
                 style={{ position: 'absolute', bottom: '4px', right: '4px', cursor: 'pointer', transform: 'scale(1.2)' }}
               />
 
-              {/* Botón rápido superior derecho para Confirmar Asistencia en LA VISTA ACTUAL */}
               <button 
                 onPointerDown={(e) => e.stopPropagation()} 
                 onClick={() => toggleConfirmacion(invitado.id)} 
