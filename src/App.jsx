@@ -70,17 +70,31 @@ const paletaMesas = [
   { bg: '#ffe4e6', border: '#f43f5e' }, { bg: '#fae8ff', border: '#d946ef' }, { bg: '#f1f5f9', border: '#64748b' } 
 ];
 
-// EXTRACTOR DE TÍTULOS ACADÉMICOS
+// EXTRACTOR DE TÍTULOS ACADÉMICOS (Vitaminado con orden de prioridad)
 const extractTitleAndName = (rawName) => {
   let name = (rawName || '').trim();
   let title = '';
-  // Lista de prefijos a buscar
-  const prefijos = ['Dr.', 'Dra.', 'Lic.', 'Mtra.', 'Mtro.', 'Quím.', 'Dr', 'Dra', 'Lic', 'Mtra', 'Mtro', 'Quím'];
+  // Lista jerárquica (Los compuestos y más largos van primero)
+  const prefijos = [
+    'Dr. med.', 'Dr. med',
+    'Dra.', 'Dra',
+    'Dr.', 'Dr',
+    'Ing.', 'Ing',
+    'Lic.', 'Lic',
+    'Mtra.', 'Mtra',
+    'Mtro.', 'Mtro',
+    'Quím.', 'Quím',
+    'D.', 'D'
+  ];
   
   for (let pref of prefijos) {
       if (name.toLowerCase().startsWith(pref.toLowerCase() + ' ')) {
           title = pref.endsWith('.') ? pref : pref + '.'; 
           title = title.charAt(0).toUpperCase() + title.slice(1);
+          
+          // Excepción visual para mantener "Dr. med." correcto (con m minúscula)
+          if (title.toLowerCase() === 'dr. med.') title = 'Dr. med.';
+          
           name = name.substring(pref.length).trim();
           break;
       }
@@ -339,7 +353,7 @@ export default function App() {
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
     const todosLosInvitados = obtenerTodosLosInvitados();
 
-    // HOJA 1: RESUMEN GENERAL (NUEVO ORDEN, TITULOS EXTRAIDOS, n/a EN LUGAR DE BANCA)
+    // HOJA 1: RESUMEN GENERAL 
     const resumenGeneral = todosLosInvitados.map(inv => {
         let ubiAuditorio = "n/a";
         Object.keys(auditorio).forEach(key => {
@@ -370,7 +384,6 @@ export default function App() {
         };
     });
     
-    // Ordenar alfabéticamente por la columna "Nombre" limpia
     resumenGeneral.sort((a, b) => a.Nombre.localeCompare(b.Nombre));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumenGeneral), "1. Resumen General");
 
@@ -1008,6 +1021,9 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
   const glow = isSelected ? `0 0 0 2px #0ea5e9, ${coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 4px 6px rgba(0,0,0,0.1)'}` : (coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 2px 4px rgba(0,0,0,0.1)'); 
   const escala = coincideBusqueda || isSelected ? 'scale(1.02)' : 'scale(1)';
 
+  // Extraemos título para visualización en la tarjeta
+  const { title: cardTitle, name: cardName } = extractTitleAndName(invitado.nombre);
+
   return (
     <Draggable draggableId={invitado.id} index={index} isDragDisabled={!modoEdicion || (isBanca && isBloqueado)}>
       {(provided, snapshot) => (
@@ -1051,7 +1067,7 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
 
           <div style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: '1.2', marginBottom: '3px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical' }}>
             {isConfirmado && <span style={{ color: '#16a34a', marginRight: '4px' }}>✓</span>}
-            {invitado.nombre}
+            {cardTitle ? `${cardTitle} ${cardName}` : cardName}
           </div>
           <div style={{ fontSize: '9px', color: '#64748b', lineHeight: '1.15', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: '3', WebkitBoxOrient: 'vertical', width: '100%' }}>{invitado.cargo}</div>
         </div>
