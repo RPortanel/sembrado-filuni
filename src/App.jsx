@@ -70,6 +70,24 @@ const paletaMesas = [
   { bg: '#ffe4e6', border: '#f43f5e' }, { bg: '#fae8ff', border: '#d946ef' }, { bg: '#f1f5f9', border: '#64748b' } 
 ];
 
+// EXTRACTOR DE TÍTULOS ACADÉMICOS
+const extractTitleAndName = (rawName) => {
+  let name = (rawName || '').trim();
+  let title = '';
+  // Lista de prefijos a buscar
+  const prefijos = ['Dr.', 'Dra.', 'Lic.', 'Mtra.', 'Mtro.', 'Quím.', 'Dr', 'Dra', 'Lic', 'Mtra', 'Mtro', 'Quím'];
+  
+  for (let pref of prefijos) {
+      if (name.toLowerCase().startsWith(pref.toLowerCase() + ' ')) {
+          title = pref.endsWith('.') ? pref : pref + '.'; 
+          title = title.charAt(0).toUpperCase() + title.slice(1);
+          name = name.substring(pref.length).trim();
+          break;
+      }
+  }
+  return { title, name };
+};
+
 export default function App() {
   const [vistaActual, setVistaActual] = useState('auditorio'); 
   const [auditorio, setAuditorio] = useState(initAuditorio());
@@ -158,7 +176,6 @@ export default function App() {
     return Array.from(mapa.values());
   };
 
-  // --- LÓGICA DE SELECCIÓN MÚLTIPLE Y CONFIRMACIÓN ---
   const toggleSeleccion = (id) => {
     setSeleccionados(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
   };
@@ -322,34 +339,38 @@ export default function App() {
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
     const todosLosInvitados = obtenerTodosLosInvitados();
 
-    // HOJA 1: RESUMEN GENERAL (NUEVA)
+    // HOJA 1: RESUMEN GENERAL (NUEVO ORDEN, TITULOS EXTRAIDOS, n/a EN LUGAR DE BANCA)
     const resumenGeneral = todosLosInvitados.map(inv => {
-        let ubiAuditorio = "Banca / No asignado";
+        let ubiAuditorio = "n/a";
         Object.keys(auditorio).forEach(key => {
             if (auditorio[key] && auditorio[key].some(g => g.id === inv.id)) {
-                if (key === 'banca') ubiAuditorio = "Banca";
+                if (key === 'banca') ubiAuditorio = "n/a";
                 else if (key.includes('estrado')) ubiAuditorio = `Estrado - Silla ${key.split('_').pop()}`;
                 else ubiAuditorio = `Fila ${key.split('_')[1]} - Silla ${key.split('_').pop()}`;
             }
         });
 
-        let ubiComida = "Banca / No asignado";
+        let ubiComida = "n/a";
         Object.keys(comida).forEach(key => {
             if (comida[key] && comida[key].some(g => g.id === inv.id)) {
-                if (key === 'banca') ubiComida = "Banca";
+                if (key === 'banca') ubiComida = "n/a";
                 else ubiComida = `${nombresMesas[`mesa_${key.split('_')[1]}`]} - Silla ${key.split('_').pop()}`;
             }
         });
 
+        const { title: tituloFormateado, name: nombreLimpio } = extractTitleAndName(inv.nombre);
+
         return {
             'Dependencia': inv.dependencia || '',
-            'Nombre': inv.nombre || '',
+            'Título': tituloFormateado,
+            'Nombre': nombreLimpio,
             'Cargo': inv.cargo || '',
             'Ubicación en inauguración': ubiAuditorio,
             'Ubicación en comida': ubiComida
         };
     });
-    // Ordenar alfabéticamente por Nombre para facilitar la lectura
+    
+    // Ordenar alfabéticamente por la columna "Nombre" limpia
     resumenGeneral.sort((a, b) => a.Nombre.localeCompare(b.Nombre));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumenGeneral), "1. Resumen General");
 
