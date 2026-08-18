@@ -24,9 +24,7 @@ const initAuditorio = () => {
 const initComida = () => {
   const layout = { banca: [] };
   for (let m = 1; m <= 12; m++) { 
-    // NUEVO: La mesa 1 tiene 12 lugares, el resto 10.
-    const numSillas = m === 1 ? 12 : 10;
-    for (let s = 1; s <= numSillas; s++) layout[`mesa_${m}_silla_${s}`] = [];
+    for (let s = 1; s <= 10; s++) layout[`mesa_${m}_silla_${s}`] = [];
   }
   return layout;
 };
@@ -103,9 +101,8 @@ export default function App() {
     const unsub = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        // Blindaje: Mezclamos el inicial con el de Firebase para inyectar sillas nuevas (ej. 11 y 12) si no existían
-        if(data.auditorio) setAuditorio({ ...initAuditorio(), ...data.auditorio });
-        if(data.comida) setComida({ ...initComida(), ...data.comida });
+        if(data.auditorio) setAuditorio(data.auditorio);
+        if(data.comida) setComida(data.comida);
         if(data.nombresMesas) setNombresMesas(data.nombresMesas);
         if(data.ordenMesas && Array.isArray(data.ordenMesas) && data.ordenMesas.length > 0) {
           setOrdenMesas(data.ordenMesas);
@@ -323,14 +320,48 @@ export default function App() {
   const exportarExcel = () => {
     const wb = XLSX.utils.book_new();
     const celdaVaciaBase = { alignment: { wrapText: true, vertical: 'top', horizontal: 'center' } };
+    const todosLosInvitados = obtenerTodosLosInvitados();
 
-    const directorio = obtenerTodosLosInvitados().map(inv => ({
+    // HOJA 1: RESUMEN GENERAL (NUEVA)
+    const resumenGeneral = todosLosInvitados.map(inv => {
+        let ubiAuditorio = "Banca / No asignado";
+        Object.keys(auditorio).forEach(key => {
+            if (auditorio[key] && auditorio[key].some(g => g.id === inv.id)) {
+                if (key === 'banca') ubiAuditorio = "Banca";
+                else if (key.includes('estrado')) ubiAuditorio = `Estrado - Silla ${key.split('_').pop()}`;
+                else ubiAuditorio = `Fila ${key.split('_')[1]} - Silla ${key.split('_').pop()}`;
+            }
+        });
+
+        let ubiComida = "Banca / No asignado";
+        Object.keys(comida).forEach(key => {
+            if (comida[key] && comida[key].some(g => g.id === inv.id)) {
+                if (key === 'banca') ubiComida = "Banca";
+                else ubiComida = `${nombresMesas[`mesa_${key.split('_')[1]}`]} - Silla ${key.split('_').pop()}`;
+            }
+        });
+
+        return {
+            'Dependencia': inv.dependencia || '',
+            'Nombre': inv.nombre || '',
+            'Cargo': inv.cargo || '',
+            'Ubicación en inauguración': ubiAuditorio,
+            'Ubicación en comida': ubiComida
+        };
+    });
+    // Ordenar alfabéticamente por Nombre para facilitar la lectura
+    resumenGeneral.sort((a, b) => a.Nombre.localeCompare(b.Nombre));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumenGeneral), "1. Resumen General");
+
+    // HOJA 2: EL DIRECTORIO MAESTRO
+    const directorio = todosLosInvitados.map(inv => ({
       'ID_NO_TOCAR': inv.id, 'Dependencia': inv.dependencia, 'Nombre': inv.nombre, 'Cargo': inv.cargo, 
       'Conf_Inauguracion': inv.confirmado_auditorio ? 'SI' : 'NO',
       'Conf_Comida': inv.confirmado_comida ? 'SI' : 'NO'
     }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(directorio), "1. Directorio Editable");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(directorio), "2. Directorio Editable");
 
+    // HOJA 3: LISTA AUDITORIO
     const datosAuditorio = [];
     for (let i = 1; i <= 8; i++) {
       const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
@@ -344,8 +375,9 @@ export default function App() {
         datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado_Inauguracion': ocupante?.confirmado_auditorio ? 'SI' : '' });
       }
     }
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosAuditorio), "2. Lista Auditorio");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosAuditorio), "3. Lista Auditorio");
 
+    // HOJA 4: LISTA COMIDA
     const datosComida = [];
     ordenMesas.forEach(m => {
       const limiteSillas = m === 1 ? 12 : 10;
@@ -354,8 +386,9 @@ export default function App() {
         datosComida.push({ 'Mesa': nombresMesas[`mesa_${m}`], 'Asiento': `Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado_Comida': ocupante?.confirmado_comida ? 'SI' : '' });
       }
     });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosComida), "3. Lista Comida");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosComida), "4. Lista Comida");
 
+    // HOJA 5: GRÁFICO AUDITORIO
     const matrizAuditorio = [];
     matrizAuditorio.push([{ v: "ESTRADO (Presidium)", s: { font: { bold: true } } }]);
     const filaEstrado = [];
@@ -384,8 +417,9 @@ export default function App() {
         if (f === 6) { matrizAuditorio.push([]); matrizAuditorio.push(["", "", "", "", "", { v: "============= P A S I L L O =============", t: 's', s: { font: { bold: true, color: { rgb: "475569" } }, alignment: { horizontal: 'center' } } }]); }
         matrizAuditorio.push([]); 
     }
-    const ws3 = XLSX.utils.aoa_to_sheet(matrizAuditorio); ws3['!cols'] = Array(16).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws3, "4. Gráfico Auditorio");
+    const ws3 = XLSX.utils.aoa_to_sheet(matrizAuditorio); ws3['!cols'] = Array(16).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws3, "5. Gráfico Auditorio");
 
+    // HOJA 6: GRÁFICO COMIDA
     const matrizComida = [];
     ordenMesas.forEach((m) => {
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
@@ -400,7 +434,7 @@ export default function App() {
         }
         matrizComida.push([]);
     });
-    const ws4 = XLSX.utils.aoa_to_sheet(matrizComida); ws4['!cols'] = Array(6).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws4, "5. Gráfico Comida");
+    const ws4 = XLSX.utils.aoa_to_sheet(matrizComida); ws4['!cols'] = Array(6).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws4, "6. Gráfico Comida");
 
     XLSX.writeFile(wb, "Sembrado_Invitados_Completo.xlsx");
   };
@@ -634,7 +668,7 @@ export default function App() {
   const renderMesaLayout = (m, indexWithinRow) => {
     const indiceColor = (m > 0 && m <= 12) ? m - 1 : 0;
     const coloresMesa = paletaMesas[indiceColor] || { bg: '#ffffff', border: '#cbd5e1' };
-    const numSillas = m === 1 ? 12 : 10; // 12 sillas para la Mesa 1
+    const numSillas = m === 1 ? 12 : 10; 
 
     return (
       <Draggable key={`mesa_draggable_${m}`} draggableId={`mesa_draggable_${m}`} index={indexWithinRow} isDragDisabled={!modoEdicion}>
@@ -728,7 +762,7 @@ export default function App() {
               </label>
             </div>
 
-            <button onClick={exportarExcel} style={{ backgroundColor: '#16a34a', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', marginTop: '5px' }}>📊 Exportar a Excel (5 Hojas)</button>
+            <button onClick={exportarExcel} style={{ backgroundColor: '#16a34a', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', marginTop: '5px' }}>📊 Exportar a Excel (6 Hojas)</button>
             <button onClick={exportarPDF} style={{ backgroundColor: '#ef4444', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>📄 Exportar Plano PDF</button>
           </div>
 
@@ -773,7 +807,7 @@ export default function App() {
                 <button onClick={() => setMostrarMenuDescarga(!mostrarMenuDescarga)} style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: '#6366f1', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>📥 Descargar ▼</button>
                 {mostrarMenuDescarga && (
                   <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '220px', zIndex: 100 }}>
-                    <button onClick={() => { exportarExcel(); setMostrarMenuDescarga(false); }} style={{ padding: '12px 15px', border: 'none', backgroundColor: 'transparent', textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 'bold', color: '#16a34a' }}>📊 Exportar a Excel (5 Hojas)</button>
+                    <button onClick={() => { exportarExcel(); setMostrarMenuDescarga(false); }} style={{ padding: '12px 15px', border: 'none', backgroundColor: 'transparent', textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 'bold', color: '#16a34a' }}>📊 Exportar a Excel (6 Hojas)</button>
                     <button onClick={() => { exportarPDF(); setMostrarMenuDescarga(false); }} style={{ padding: '12px 15px', border: 'none', backgroundColor: 'transparent', textAlign: 'left', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', color: '#ef4444' }}>📄 Exportar Plano PDF</button>
                   </div>
                 )}
@@ -947,10 +981,7 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
   const isSelected = seleccionados?.includes(invitado.id);
   const opacity = (textoBusqueda !== '' && !coincideBusqueda) ? 0.2 : (isBloqueado ? 0.5 : 1); 
   
-  // VERIFICADOR INDEPENDIENTE DE VISTA
   const isConfirmado = vista === 'auditorio' ? invitado.confirmado_auditorio : invitado.confirmado_comida;
-
-  // Fondo dinámico
   const bgCard = isBloqueado ? '#e2e8f0' : (isSelected ? '#e0f2fe' : (isConfirmado ? '#dcfce7' : 'white'));
   
   const glow = isSelected ? `0 0 0 2px #0ea5e9, ${coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 4px 6px rgba(0,0,0,0.1)'}` : (coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 2px 4px rgba(0,0,0,0.1)'); 
