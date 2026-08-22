@@ -70,31 +70,16 @@ const paletaMesas = [
   { bg: '#ffe4e6', border: '#f43f5e' }, { bg: '#fae8ff', border: '#d946ef' }, { bg: '#f1f5f9', border: '#64748b' } 
 ];
 
-// EXTRACTOR DE TÍTULOS ACADÉMICOS (Vitaminado con orden de prioridad)
 const extractTitleAndName = (rawName) => {
   let name = (rawName || '').trim();
   let title = '';
-  // Lista jerárquica (Los compuestos y más largos van primero)
-  const prefijos = [
-    'Dr. med.', 'Dr. med',
-    'Dra.', 'Dra',
-    'Dr.', 'Dr',
-    'Ing.', 'Ing',
-    'Lic.', 'Lic',
-    'Mtra.', 'Mtra',
-    'Mtro.', 'Mtro',
-    'Quím.', 'Quím',
-    'D.', 'D'
-  ];
+  const prefijos = ['Dr. med.', 'Dr. med', 'Dra.', 'Dra', 'Dr.', 'Dr', 'Ing.', 'Ing', 'Lic.', 'Lic', 'Mtra.', 'Mtra', 'Mtro.', 'Mtro', 'Quím.', 'Quím', 'D.', 'D'];
   
   for (let pref of prefijos) {
       if (name.toLowerCase().startsWith(pref.toLowerCase() + ' ')) {
           title = pref.endsWith('.') ? pref : pref + '.'; 
           title = title.charAt(0).toUpperCase() + title.slice(1);
-          
-          // Excepción visual para mantener "Dr. med." correcto (con m minúscula)
           if (title.toLowerCase() === 'dr. med.') title = 'Dr. med.';
-          
           name = name.substring(pref.length).trim();
           break;
       }
@@ -379,6 +364,7 @@ export default function App() {
             'Título': tituloFormateado,
             'Nombre': nombreLimpio,
             'Cargo': inv.cargo || '',
+            'Estacionamiento': inv.estacionamiento || '',
             'Ubicación en inauguración': ubiAuditorio,
             'Ubicación en comida': ubiComida
         };
@@ -390,6 +376,7 @@ export default function App() {
     // HOJA 2: EL DIRECTORIO MAESTRO
     const directorio = todosLosInvitados.map(inv => ({
       'ID_NO_TOCAR': inv.id, 'Dependencia': inv.dependencia, 'Nombre': inv.nombre, 'Cargo': inv.cargo, 
+      'Estacionamiento': inv.estacionamiento || '',
       'Conf_Inauguracion': inv.confirmado_auditorio ? 'SI' : 'NO',
       'Conf_Comida': inv.confirmado_comida ? 'SI' : 'NO'
     }));
@@ -422,7 +409,19 @@ export default function App() {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosComida), "4. Lista Comida");
 
-    // HOJA 5: GRÁFICO AUDITORIO
+    // HOJA 5: LISTA ESTACIONAMIENTO (NUEVA)
+    const datosEstacionamiento = todosLosInvitados
+      .filter(inv => inv.estacionamiento && String(inv.estacionamiento).trim() !== '')
+      .map(inv => ({
+        'Estacionamiento': inv.estacionamiento,
+        'Dependencia': inv.dependencia || '',
+        'Nombre': inv.nombre || '',
+        'Cargo': inv.cargo || ''
+      }))
+      .sort((a, b) => a.Estacionamiento.localeCompare(b.Estacionamiento, undefined, {numeric: true, sensitivity: 'base'}));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosEstacionamiento), "5. Lista Estacionamiento");
+
+    // HOJA 6: GRÁFICO AUDITORIO
     const matrizAuditorio = [];
     matrizAuditorio.push([{ v: "ESTRADO (Presidium)", s: { font: { bold: true } } }]);
     const filaEstrado = [];
@@ -451,9 +450,9 @@ export default function App() {
         if (f === 6) { matrizAuditorio.push([]); matrizAuditorio.push(["", "", "", "", "", { v: "============= P A S I L L O =============", t: 's', s: { font: { bold: true, color: { rgb: "475569" } }, alignment: { horizontal: 'center' } } }]); }
         matrizAuditorio.push([]); 
     }
-    const ws3 = XLSX.utils.aoa_to_sheet(matrizAuditorio); ws3['!cols'] = Array(16).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws3, "5. Gráfico Auditorio");
+    const ws3 = XLSX.utils.aoa_to_sheet(matrizAuditorio); ws3['!cols'] = Array(16).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws3, "6. Gráfico Auditorio");
 
-    // HOJA 6: GRÁFICO COMIDA
+    // HOJA 7: GRÁFICO COMIDA
     const matrizComida = [];
     ordenMesas.forEach((m) => {
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
@@ -468,7 +467,7 @@ export default function App() {
         }
         matrizComida.push([]);
     });
-    const ws4 = XLSX.utils.aoa_to_sheet(matrizComida); ws4['!cols'] = Array(6).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws4, "6. Gráfico Comida");
+    const ws4 = XLSX.utils.aoa_to_sheet(matrizComida); ws4['!cols'] = Array(6).fill({ wch: 25 }); XLSX.utils.book_append_sheet(wb, ws4, "7. Gráfico Comida");
 
     XLSX.writeFile(wb, "Sembrado_Invitados_Completo.xlsx");
   };
@@ -486,7 +485,7 @@ export default function App() {
         const nuevosInvitados = filasExcel.map((fila, index) => {
           const filaNorm = {};
           Object.keys(fila).forEach(key => { filaNorm[key.toLowerCase().trim()] = fila[key]; });
-          return { id: `excel-${Date.now()}-${index}`, dependencia: filaNorm.dependencia || '', nombre: filaNorm.nombre || 'Sin Nombre', cargo: filaNorm.cargo || 'Sin Cargo', confirmado_auditorio: false, confirmado_comida: false, bloqueado_auditorio: false, bloqueado_comida: false };
+          return { id: `excel-${Date.now()}-${index}`, dependencia: filaNorm.dependencia || '', nombre: filaNorm.nombre || 'Sin Nombre', cargo: filaNorm.cargo || 'Sin Cargo', estacionamiento: filaNorm.estacionamiento !== undefined ? String(filaNorm.estacionamiento) : '', confirmado_auditorio: false, confirmado_comida: false, bloqueado_auditorio: false, bloqueado_comida: false };
         });
         const nuevoAuditorio = { ...auditorio, banca: [...auditorio.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_auditorio === b.bloqueado_auditorio ? 0 : a.bloqueado_auditorio ? 1 : -1)) };
         const nuevaComida = { ...comida, banca: [...comida.banca, ...nuevosInvitados].sort((a, b) => (a.bloqueado_comida === b.bloqueado_comida ? 0 : a.bloqueado_comida ? 1 : -1)) };
@@ -519,6 +518,7 @@ export default function App() {
               nombre: filaNorm['NOMBRE'] || '', 
               cargo: filaNorm['CARGO'] || '', 
               dependencia: filaNorm['DEPENDENCIA'] || '',
+              estacionamiento: filaNorm['ESTACIONAMIENTO'] !== undefined ? String(filaNorm['ESTACIONAMIENTO']) : '',
               confirmado_auditorio: valAud && (valAud.toString().toUpperCase() === 'SI' || valAud.toString().toUpperCase() === 'SÍ'),
               confirmado_comida: valComida && (valComida.toString().toUpperCase() === 'SI' || valComida.toString().toUpperCase() === 'SÍ')
             };
@@ -753,6 +753,11 @@ export default function App() {
               <input type="text" value={invitadoEditando.dependencia} onChange={(e) => setInvitadoEditando({...invitadoEditando, dependencia: e.target.value})} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none' }} placeholder="Ej: UNAM, UV, Externo, DGPyFE, Rectores" />
             </div>
             
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Cajón de Estacionamiento</label>
+              <input type="text" value={invitadoEditando.estacionamiento || ''} onChange={(e) => setInvitadoEditando({...invitadoEditando, estacionamiento: e.target.value})} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none' }} placeholder="Ej: E-12, VIP-1" />
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '5px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <input type="checkbox" id="checkConfAud" checked={invitadoEditando.confirmado_auditorio || false} onChange={(e) => setInvitadoEditando({...invitadoEditando, confirmado_auditorio: e.target.checked})} style={{ width: '18px', height: '18px', cursor: 'pointer' }}/>
@@ -796,7 +801,7 @@ export default function App() {
               </label>
             </div>
 
-            <button onClick={exportarExcel} style={{ backgroundColor: '#16a34a', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', marginTop: '5px' }}>📊 Exportar a Excel (6 Hojas)</button>
+            <button onClick={exportarExcel} style={{ backgroundColor: '#16a34a', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', marginTop: '5px' }}>📊 Exportar a Excel (7 Hojas)</button>
             <button onClick={exportarPDF} style={{ backgroundColor: '#ef4444', color: 'white', padding: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>📄 Exportar Plano PDF</button>
           </div>
 
@@ -841,7 +846,7 @@ export default function App() {
                 <button onClick={() => setMostrarMenuDescarga(!mostrarMenuDescarga)} style={{ padding: '8px 15px', fontSize: '14px', borderRadius: '8px', border: 'none', backgroundColor: '#6366f1', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>📥 Descargar ▼</button>
                 {mostrarMenuDescarga && (
                   <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '220px', zIndex: 100 }}>
-                    <button onClick={() => { exportarExcel(); setMostrarMenuDescarga(false); }} style={{ padding: '12px 15px', border: 'none', backgroundColor: 'transparent', textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 'bold', color: '#16a34a' }}>📊 Exportar a Excel (6 Hojas)</button>
+                    <button onClick={() => { exportarExcel(); setMostrarMenuDescarga(false); }} style={{ padding: '12px 15px', border: 'none', backgroundColor: 'transparent', textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 'bold', color: '#16a34a' }}>📊 Exportar a Excel (7 Hojas)</button>
                     <button onClick={() => { exportarPDF(); setMostrarMenuDescarga(false); }} style={{ padding: '12px 15px', border: 'none', backgroundColor: 'transparent', textAlign: 'left', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', color: '#ef4444' }}>📄 Exportar Plano PDF</button>
                   </div>
                 )}
@@ -1021,7 +1026,6 @@ function Tarjeta({ invitado, index, enSilla, isBanca, isBloqueado, onToggleLock,
   const glow = isSelected ? `0 0 0 2px #0ea5e9, ${coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 4px 6px rgba(0,0,0,0.1)'}` : (coincideBusqueda ? '0 0 15px 4px #ec4899' : '0 2px 4px rgba(0,0,0,0.1)'); 
   const escala = coincideBusqueda || isSelected ? 'scale(1.02)' : 'scale(1)';
 
-  // Extraemos título para visualización en la tarjeta
   const { title: cardTitle, name: cardName } = extractTitleAndName(invitado.nombre);
 
   return (
