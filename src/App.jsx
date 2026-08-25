@@ -9,7 +9,6 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 // --- 1. GENERADORES DE ESTRUCTURAS ---
 const initAuditorio = () => {
   const layout = { banca: [] };
-  // Estrado aumentado a 9 lugares
   for (let i = 1; i <= 9; i++) layout[`estrado_silla_${i}`] = [];
   
   for (let f = 1; f <= 14; f++) {
@@ -25,7 +24,6 @@ const initAuditorio = () => {
 const initComida = () => {
   const layout = { banca: [] };
   for (let m = 1; m <= 12; m++) { 
-    // Mesa 1 tiene 15 lugares (3 lados x 4 + 3 cabecera), resto 10
     const numSillas = m === 1 ? 15 : 10;
     for (let s = 1; s <= numSillas; s++) layout[`mesa_${m}_silla_${s}`] = [];
   }
@@ -389,7 +387,7 @@ export default function App() {
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(directorio), "2. Directorio Editable");
 
-    // HOJA 3: LISTA AUDITORIO (Con regla de General)
+    // HOJA 3: LISTA AUDITORIO
     const datosAuditorio = [];
     for (let i = 1; i <= 9; i++) {
       const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
@@ -740,26 +738,31 @@ export default function App() {
             </div>
             
             {isMesaHonor ? (
-              // DISEÑO HERRADURA/CUADRADO MESA 1 (15 LUGARES)
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
-                  {[1, 2, 3].map(s => renderSillaUnica(m, s))}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', width: '100%' }}>
+                <div style={{ gridColumn: '1 / 5', display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '5px' }}>
+                  <div style={{ flex: 1, maxWidth: '24%' }}>{renderSillaUnica(m, 1)}</div>
+                  <div style={{ flex: 1, maxWidth: '24%' }}>{renderSillaUnica(m, 2)}</div>
+                  <div style={{ flex: 1, maxWidth: '24%' }}>{renderSillaUnica(m, 3)}</div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 10px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                     {[4, 5, 6, 7].map(s => renderSillaUnica(m, s))}
-                  </div>
-                  <div style={{ width: '100px' }}>{/* Espacio hueco central */}</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                     {[8, 9, 10, 11].map(s => renderSillaUnica(m, s))}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
-                  {[12, 13, 14, 15].map(s => renderSillaUnica(m, s))}
-                </div>
+
+                <div style={{ gridColumn: '1' }}>{renderSillaUnica(m, 4)}</div>
+                <div style={{ gridColumn: '4' }}>{renderSillaUnica(m, 8)}</div>
+                
+                <div style={{ gridColumn: '1' }}>{renderSillaUnica(m, 5)}</div>
+                <div style={{ gridColumn: '4' }}>{renderSillaUnica(m, 9)}</div>
+                
+                <div style={{ gridColumn: '1' }}>{renderSillaUnica(m, 6)}</div>
+                <div style={{ gridColumn: '4' }}>{renderSillaUnica(m, 10)}</div>
+                
+                <div style={{ gridColumn: '1' }}>{renderSillaUnica(m, 7)}</div>
+                <div style={{ gridColumn: '4' }}>{renderSillaUnica(m, 11)}</div>
+
+                <div style={{ gridColumn: '1' }}>{renderSillaUnica(m, 12)}</div>
+                <div style={{ gridColumn: '2' }}>{renderSillaUnica(m, 13)}</div>
+                <div style={{ gridColumn: '3' }}>{renderSillaUnica(m, 14)}</div>
+                <div style={{ gridColumn: '4' }}>{renderSillaUnica(m, 15)}</div>
               </div>
             ) : (
-              // DISEÑO NORMAL (10 LUGARES)
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '100%' }}>
                 {Array.from({ length: 10 }, (_, s) => renderSillaUnica(m, s+1))}
               </div>
