@@ -23,7 +23,8 @@ const initAuditorio = () => {
 
 const initComida = () => {
   const layout = { banca: [] };
-  for (let m = 1; m <= 12; m++) { 
+  // REDUCIDO A 10 MESAS
+  for (let m = 1; m <= 10; m++) { 
     const numSillas = m === 1 ? 15 : 10;
     for (let s = 1; s <= numSillas; s++) layout[`mesa_${m}_silla_${s}`] = [];
   }
@@ -92,13 +93,14 @@ export default function App() {
   const [vistaActual, setVistaActual] = useState('auditorio'); 
   const [auditorio, setAuditorio] = useState(initAuditorio());
   const [comida, setComida] = useState(initComida());
+  
+  // REDUCIDO A 10 MESAS
   const [nombresMesas, setNombresMesas] = useState({
     mesa_1: 'Mesa 1', mesa_2: 'Mesa 2', mesa_3: 'Mesa 3', mesa_4: 'Mesa 4', mesa_5: 'Mesa 5',
-    mesa_6: 'Mesa 6', mesa_7: 'Mesa 7', mesa_8: 'Mesa 8', mesa_9: 'Mesa 9', mesa_10: 'Mesa 10', 
-    mesa_11: 'Mesa 11', mesa_12: 'Mesa 12' 
+    mesa_6: 'Mesa 6', mesa_7: 'Mesa 7', mesa_8: 'Mesa 8', mesa_9: 'Mesa 9', mesa_10: 'Mesa 10'
   });
-  
-  const [ordenMesas, setOrdenMesas] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  const [ordenMesas, setOrdenMesas] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
   const [historial, setHistorial] = useState([]);
   const [modoEdicion, setModoEdicion] = useState(false); 
   const [modoPresentacion, setModoPresentacion] = useState(false);
@@ -298,7 +300,7 @@ export default function App() {
   const manejarBlurNombreMesa = () => syncToCloud(null, null, nombresMesas, null);
 
   const descargarRespaldo = () => {
-    const ordenAExportar = (ordenMesas && ordenMesas.length > 0) ? ordenMesas : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    const ordenAExportar = (ordenMesas && ordenMesas.length > 0) ? ordenMesas : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     const datos = { auditorio, comida, nombresMesas, ordenMesas: ordenAExportar };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(datos));
     const elementoEnlace = document.createElement('a');
@@ -319,7 +321,7 @@ export default function App() {
           const auditorioSeguro = { ...initAuditorio(), ...parseado.auditorio };
           const comidaSegura = { ...initComida(), ...parseado.comida };
           const nombresSeguros = { ...nombresMesas, ...(parseado.nombresMesas || {}) };
-          let ordenSeguro = [1,2,3,4,5,6,7,8,9,10,11,12];
+          let ordenSeguro = [1,2,3,4,5,6,7,8,9,10];
           if (parseado.ordenMesas && Array.isArray(parseado.ordenMesas) && parseado.ordenMesas.length > 0) {
             ordenSeguro = parseado.ordenMesas;
           }
@@ -462,11 +464,11 @@ export default function App() {
     const matrizComida = [];
     ordenMesas.forEach((m) => {
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
-        const filasMesa = m === 1 ? 8 : 5; // Mesa 1 ahora la dibujamos en 8 filas para que quepan sus 15 sillas en excel
+        const filasMesa = m === 1 ? 8 : 5; // Mesa 1 ahora la dibujamos en 8 filas para excel
         for(let fila=0; fila<filasMesa; fila++) {
             const o1 = (comida[`mesa_${m}_silla_${(fila * 2) + 1}`] || [])[0]; 
             const o2 = (comida[`mesa_${m}_silla_${(fila * 2) + 2}`] || [])[0];
-            if(!o1 && !o2 && m === 1 && (fila * 2) + 1 > 15) continue; // No dibujar de mas si es impar
+            if(!o1 && !o2 && m === 1 && (fila * 2) + 1 > 15) continue; 
             matrizComida.push([
               o1 ? { v: `${o1.confirmado_comida ? '✅ ' : ''}${o1.nombre}\n${o1.cargo}`, t: 's', s: getExcelStyle(o1.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }, 
               o2 ? { v: `${o2.confirmado_comida ? '✅ ' : ''}${o2.nombre}\n${o2.cargo}`, t: 's', s: getExcelStyle(o2.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }
@@ -702,13 +704,12 @@ export default function App() {
   const ocupantesAuditorio = Object.keys(auditorio).reduce((acc, key) => (key !== 'banca' && !key.includes('estrado')) ? acc + (auditorio[key] || []).length : acc, 0);
   const ocupantesComida = Object.keys(comida).reduce((acc, key) => (key !== 'banca') ? acc + (comida[key] || []).length : acc, 0);
 
-  // AGRUPACIÓN DE MESAS: Fila 1(1), Fila 2(3), Fila 3(3), etc.
+  // AGRUPACIÓN DE MESAS: Fila 1(1), Fila 2(3), Fila 3(3), Fila 4(3)
   const bloquesMesas = [];
   if (ordenMesas.length > 0) bloquesMesas.push([ordenMesas[0]]);
   if (ordenMesas.length > 1) bloquesMesas.push(ordenMesas.slice(1, 4));
   if (ordenMesas.length > 4) bloquesMesas.push(ordenMesas.slice(4, 7));
   if (ordenMesas.length > 7) bloquesMesas.push(ordenMesas.slice(7, 10));
-  if (ordenMesas.length > 10) bloquesMesas.push(ordenMesas.slice(10));
 
   const renderSillaUnica = (m, s) => {
     const ocupante = layoutActivo[`mesa_${m}_silla_${s}`] || [];
