@@ -9,7 +9,8 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 // --- 1. GENERADORES DE ESTRUCTURAS ---
 const initAuditorio = () => {
   const layout = { banca: [] };
-  for (let i = 1; i <= 8; i++) layout[`estrado_silla_${i}`] = [];
+  // Estrado aumentado a 9 lugares
+  for (let i = 1; i <= 9; i++) layout[`estrado_silla_${i}`] = [];
   
   for (let f = 1; f <= 14; f++) {
     for (let s = 1; s <= 13; s++) {
@@ -24,7 +25,9 @@ const initAuditorio = () => {
 const initComida = () => {
   const layout = { banca: [] };
   for (let m = 1; m <= 12; m++) { 
-    for (let s = 1; s <= 10; s++) layout[`mesa_${m}_silla_${s}`] = [];
+    // Mesa 1 tiene 15 lugares (3 lados x 4 + 3 cabecera), resto 10
+    const numSillas = m === 1 ? 15 : 10;
+    for (let s = 1; s <= numSillas; s++) layout[`mesa_${m}_silla_${s}`] = [];
   }
   return layout;
 };
@@ -118,8 +121,8 @@ export default function App() {
     const unsub = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if(data.auditorio) setAuditorio(data.auditorio);
-        if(data.comida) setComida(data.comida);
+        if(data.auditorio) setAuditorio({ ...initAuditorio(), ...data.auditorio });
+        if(data.comida) setComida({ ...initComida(), ...data.comida });
         if(data.nombresMesas) setNombresMesas(data.nombresMesas);
         if(data.ordenMesas && Array.isArray(data.ordenMesas) && data.ordenMesas.length > 0) {
           setOrdenMesas(data.ordenMesas);
@@ -210,7 +213,7 @@ export default function App() {
 
   const getIdsEstrado = () => {
     const ids = [];
-    for (let i = 1; i <= 8; i++) {
+    for (let i = 1; i <= 9; i++) {
       const oc = auditorio[`estrado_silla_${i}`]; if (oc && oc.length > 0) ids.push(oc[0].id);
     }
     return ids;
@@ -224,7 +227,7 @@ export default function App() {
   };
   const getIdsMesa = (m) => {
     const ids = [];
-    const numSillas = m === 1 ? 12 : 10;
+    const numSillas = m === 1 ? 15 : 10;
     for (let s = 1; s <= numSillas; s++) {
       const oc = comida[`mesa_${m}_silla_${s}`]; if (oc && oc.length > 0) ids.push(oc[0].id);
     }
@@ -233,7 +236,7 @@ export default function App() {
 
   const getSecuenciaAuditorio = () => {
     const seq = [];
-    for (let i = 1; i <= 8; i++) seq.push(`estrado_silla_${i}`);
+    for (let i = 1; i <= 9; i++) seq.push(`estrado_silla_${i}`);
     for (let f = 1; f <= 14; f++) {
       for (let s = 1; s <= 13; s++) {
         if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) continue;
@@ -247,7 +250,7 @@ export default function App() {
   const getSecuenciaComida = () => {
     const seq = [];
     ordenMesas.forEach(m => {
-      const numSillas = m === 1 ? 12 : 10;
+      const numSillas = m === 1 ? 15 : 10;
       for (let s = 1; s <= numSillas; s++) seq.push(`mesa_${m}_silla_${s}`);
     });
     return seq;
@@ -345,7 +348,11 @@ export default function App() {
             if (auditorio[key] && auditorio[key].some(g => g.id === inv.id)) {
                 if (key === 'banca') ubiAuditorio = "n/a";
                 else if (key.includes('estrado')) ubiAuditorio = `Estrado - Silla ${key.split('_').pop()}`;
-                else ubiAuditorio = `Fila ${key.split('_')[1]} - Silla ${key.split('_').pop()}`;
+                else {
+                    const f = parseInt(key.split('_')[1]);
+                    if (f >= 7) ubiAuditorio = "General";
+                    else ubiAuditorio = `Fila ${f} - Silla ${key.split('_').pop()}`;
+                }
             }
         });
 
@@ -382,9 +389,9 @@ export default function App() {
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(directorio), "2. Directorio Editable");
 
-    // HOJA 3: LISTA AUDITORIO
+    // HOJA 3: LISTA AUDITORIO (Con regla de General)
     const datosAuditorio = [];
-    for (let i = 1; i <= 8; i++) {
+    for (let i = 1; i <= 9; i++) {
       const ocupante = (auditorio[`estrado_silla_${i}`] || [])[0];
       datosAuditorio.push({ 'Ubicación': `Estrado - Silla ${i}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado_Inauguracion': ocupante?.confirmado_auditorio ? 'SI' : '' });
     }
@@ -393,7 +400,8 @@ export default function App() {
         if ((f === 7 || f === 8) && (s >= 6 && s <= 8)) continue;
         if (f >= 9 && f <= 14 && (s >= 6 && s <= 8)) continue;
         const ocupante = (auditorio[`fila_${f}_silla_${s}`] || [])[0];
-        datosAuditorio.push({ 'Ubicación': `Fila ${f} - Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado_Inauguracion': ocupante?.confirmado_auditorio ? 'SI' : '' });
+        const ubi = f >= 7 ? "General" : `Fila ${f} - Silla ${s}`;
+        datosAuditorio.push({ 'Ubicación': ubi, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado_Inauguracion': ocupante?.confirmado_auditorio ? 'SI' : '' });
       }
     }
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosAuditorio), "3. Lista Auditorio");
@@ -401,7 +409,7 @@ export default function App() {
     // HOJA 4: LISTA COMIDA
     const datosComida = [];
     ordenMesas.forEach(m => {
-      const limiteSillas = m === 1 ? 12 : 10;
+      const limiteSillas = m === 1 ? 15 : 10;
       for(let s=1; s<=limiteSillas; s++) {
         const ocupante = (comida[`mesa_${m}_silla_${s}`] || [])[0];
         datosComida.push({ 'Mesa': nombresMesas[`mesa_${m}`], 'Asiento': `Silla ${s}`, 'Dependencia': ocupante?.dependencia || '', 'Nombre': ocupante?.nombre || '[ Vacío ]', 'Cargo': ocupante?.cargo || '', 'Confirmado_Comida': ocupante?.confirmado_comida ? 'SI' : '' });
@@ -409,7 +417,7 @@ export default function App() {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(datosComida), "4. Lista Comida");
 
-    // HOJA 5: LISTA ESTACIONAMIENTO (NUEVA)
+    // HOJA 5: LISTA ESTACIONAMIENTO 
     const datosEstacionamiento = todosLosInvitados
       .filter(inv => inv.estacionamiento && String(inv.estacionamiento).trim() !== '')
       .map(inv => ({
@@ -425,7 +433,7 @@ export default function App() {
     const matrizAuditorio = [];
     matrizAuditorio.push([{ v: "ESTRADO (Presidium)", s: { font: { bold: true } } }]);
     const filaEstrado = [];
-    for(let i=1; i<=8; i++) {
+    for(let i=1; i<=9; i++) {
         const oc = (auditorio[`estrado_silla_${i}`] || [])[0];
         filaEstrado.push(oc ? { v: `${oc.confirmado_auditorio ? '✅ ' : ''}${oc.nombre}\n${oc.cargo}`, t: 's', s: getExcelStyle(oc.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase });
     }
@@ -456,10 +464,11 @@ export default function App() {
     const matrizComida = [];
     ordenMesas.forEach((m) => {
         matrizComida.push([{ v: nombresMesas[`mesa_${m}`], s: { font: { bold: true } } }]);
-        const filasMesa = m === 1 ? 6 : 5; // 12 sillas ocupan 6 filas de 2
+        const filasMesa = m === 1 ? 8 : 5; // Mesa 1 ahora la dibujamos en 8 filas para que quepan sus 15 sillas en excel
         for(let fila=0; fila<filasMesa; fila++) {
             const o1 = (comida[`mesa_${m}_silla_${(fila * 2) + 1}`] || [])[0]; 
             const o2 = (comida[`mesa_${m}_silla_${(fila * 2) + 2}`] || [])[0];
+            if(!o1 && !o2 && m === 1 && (fila * 2) + 1 > 15) continue; // No dibujar de mas si es impar
             matrizComida.push([
               o1 ? { v: `${o1.confirmado_comida ? '✅ ' : ''}${o1.nombre}\n${o1.cargo}`, t: 's', s: getExcelStyle(o1.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }, 
               o2 ? { v: `${o2.confirmado_comida ? '✅ ' : ''}${o2.nombre}\n${o2.cargo}`, t: 's', s: getExcelStyle(o2.dependencia) } : { v: "[ Vacío ]", t: 's', s: celdaVaciaBase }
@@ -695,19 +704,28 @@ export default function App() {
   const ocupantesAuditorio = Object.keys(auditorio).reduce((acc, key) => (key !== 'banca' && !key.includes('estrado')) ? acc + (auditorio[key] || []).length : acc, 0);
   const ocupantesComida = Object.keys(comida).reduce((acc, key) => (key !== 'banca') ? acc + (comida[key] || []).length : acc, 0);
 
-  const ordenSeguro = (ordenMesas && ordenMesas.length > 0) ? ordenMesas : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  // AGRUPACIÓN DE MESAS: Fila 1(1), Fila 2(3), Fila 3(3), etc.
   const bloquesMesas = [];
-  for (let i = 0; i < ordenSeguro.length; i += 3) { bloquesMesas.push(ordenSeguro.slice(i, i + 3)); }
+  if (ordenMesas.length > 0) bloquesMesas.push([ordenMesas[0]]);
+  if (ordenMesas.length > 1) bloquesMesas.push(ordenMesas.slice(1, 4));
+  if (ordenMesas.length > 4) bloquesMesas.push(ordenMesas.slice(4, 7));
+  if (ordenMesas.length > 7) bloquesMesas.push(ordenMesas.slice(7, 10));
+  if (ordenMesas.length > 10) bloquesMesas.push(ordenMesas.slice(10));
+
+  const renderSillaUnica = (m, s) => {
+    const ocupante = layoutActivo[`mesa_${m}_silla_${s}`] || [];
+    return <Silla key={`mesa_${m}_silla_${s}`} id={`mesa_${m}_silla_${s}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} toggleConfirmacion={toggleConfirmacion} />
+  };
 
   const renderMesaLayout = (m, indexWithinRow) => {
     const indiceColor = (m > 0 && m <= 12) ? m - 1 : 0;
     const coloresMesa = paletaMesas[indiceColor] || { bg: '#ffffff', border: '#cbd5e1' };
-    const numSillas = m === 1 ? 12 : 10; 
+    const isMesaHonor = m === 1;
 
     return (
       <Draggable key={`mesa_draggable_${m}`} draggableId={`mesa_draggable_${m}`} index={indexWithinRow} isDragDisabled={!modoEdicion}>
         {(provided, snapshot) => (
-          <div ref={provided.innerRef} {...provided.draggableProps} style={{ ...provided.draggableProps.style, width: '320px', backgroundColor: coloresMesa.bg, border: `3px solid ${coloresMesa.border}`, borderRadius: '8px', padding: '15px 20px 20px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: snapshot.isDragging ? '0 15px 25px rgba(0,0,0,0.3)' : '0 4px 6px -1px rgba(0,0,0,0.1)', flexShrink: 0, opacity: snapshot.isDragging ? 0.9 : 1, position: 'relative' }}>
+          <div ref={provided.innerRef} {...provided.draggableProps} style={{ ...provided.draggableProps.style, width: isMesaHonor ? '550px' : '320px', backgroundColor: coloresMesa.bg, border: `3px solid ${coloresMesa.border}`, borderRadius: '8px', padding: '15px 20px 20px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: snapshot.isDragging ? '0 15px 25px rgba(0,0,0,0.3)' : '0 4px 6px -1px rgba(0,0,0,0.1)', flexShrink: 0, opacity: snapshot.isDragging ? 0.9 : 1, position: 'relative' }}>
             {modoEdicion && (
               <div {...provided.dragHandleProps} title="Arrastrar mesa para reordenarla" style={{ width: '100%', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: snapshot.isDragging ? 'grabbing' : 'grab', marginBottom: '8px', color: coloresMesa.border, opacity: 0.6 }}>
                 <span style={{ fontSize: '18px', lineHeight: '0' }}>⣿</span>
@@ -720,12 +738,33 @@ export default function App() {
                 <button onClick={() => toggleSeleccionGrupo(getIdsMesa(m))} title="Seleccionar a todos los de la mesa" style={{ padding: '8px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>✓</button>
               )}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '100%' }}>
-              {Array.from({ length: numSillas }, (_, s) => {
-                const ocupante = layoutActivo[`mesa_${m}_silla_${s+1}`] || [];
-                return <Silla key={`mesa_${m}_silla_${s+1}`} id={`mesa_${m}_silla_${s+1}`} ocupante={ocupante} vista={vistaActual} busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} toggleConfirmacion={toggleConfirmacion} />
-              })}
-            </div>
+            
+            {isMesaHonor ? (
+              // DISEÑO HERRADURA/CUADRADO MESA 1 (15 LUGARES)
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                  {[1, 2, 3].map(s => renderSillaUnica(m, s))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 10px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                     {[4, 5, 6, 7].map(s => renderSillaUnica(m, s))}
+                  </div>
+                  <div style={{ width: '100px' }}>{/* Espacio hueco central */}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                     {[8, 9, 10, 11].map(s => renderSillaUnica(m, s))}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                  {[12, 13, 14, 15].map(s => renderSillaUnica(m, s))}
+                </div>
+              </div>
+            ) : (
+              // DISEÑO NORMAL (10 LUGARES)
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', width: '100%' }}>
+                {Array.from({ length: 10 }, (_, s) => renderSillaUnica(m, s+1))}
+              </div>
+            )}
+            
           </div>
         )}
       </Draggable>
@@ -894,7 +933,7 @@ export default function App() {
                     <div style={{ backgroundColor: '#1e293b', padding: '20px 40px', borderRadius: '8px', border: '2px solid #0f172a', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', marginBottom: '20px' }}>
                       <h3 onClick={() => modoEdicion && toggleSeleccionGrupo(getIdsEstrado())} title={modoEdicion ? "Seleccionar todo el estrado" : ""} style={{ color: 'white', textAlign: 'center', marginBottom: '20px', letterSpacing: '2px', cursor: modoEdicion ? 'pointer' : 'default' }}>ESTRADO (Presidium)</h3>
                       <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-                        {Array.from({ length: 8 }, (_, i) => <Silla key={`estrado_silla_${i+1}`} id={`estrado_silla_${i+1}`} ocupante={layoutActivo[`estrado_silla_${i+1}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} toggleConfirmacion={toggleConfirmacion} />)}
+                        {Array.from({ length: 9 }, (_, i) => <Silla key={`estrado_silla_${i+1}`} id={`estrado_silla_${i+1}`} ocupante={layoutActivo[`estrado_silla_${i+1}`] || []} vista="auditorio" busqueda={busquedaLienzo} onEdit={setInvitadoEditando} modoEdicion={modoEdicion} seleccionados={seleccionados} toggleSeleccion={toggleSeleccion} toggleConfirmacion={toggleConfirmacion} />)}
                       </div>
                     </div>
                     
